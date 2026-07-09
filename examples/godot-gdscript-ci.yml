@@ -20,4 +20,5 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          gua-ref: main
+          # Optional. Leave unset to use the latest godot-plugin-* release.
+          # gua-plugin-tag: godot-plugin-f448370cf009

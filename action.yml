@@ -1,5 +1,5 @@
 name: Gua Godot GDScript CI
-description: Install Godot, build the Gua GDScript addon, link it into a Godot project, and run .NET tests.
+description: Install Godot, download the released Gua GDScript addon, link it into a Godot project, and run .NET tests.
 
 branding:
   icon: 'bell'
@@ -23,17 +23,17 @@ inputs:
     required: false
     default: 10.0.x
   gua-repository:
-    description: Repository containing the Gua addon source.
+    description: Repository containing Gua Godot plugin releases.
     required: false
     default: link1345/gua
-  gua-ref:
-    description: Git ref used to build the Gua Godot addon.
+  gua-plugin-tag:
+    description: Gua Godot plugin release tag. Leave empty to use the latest godot-plugin-* release.
     required: false
-    default: main
-  gua-checkout-path:
-    description: Workspace path where the Gua source checkout is placed.
+    default: ""
+  gua-plugin-asset-pattern:
+    description: Asset name wildcard used to select the addon zip from the release.
     required: false
-    default: _deps/gua
+    default: gua-godot-plugin-*.zip
   project-path:
     description: Path to the consumer Godot project directory.
     required: false
@@ -66,13 +66,6 @@ runs:
       with:
         dotnet-version: ${{ inputs.dotnet-version }}
 
-    - name: Check out Gua source
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ inputs.gua-repository }}
-        ref: ${{ inputs.gua-ref }}
-        path: ${{ inputs.gua-checkout-path }}
-
     - name: Download Godot
       id: download-godot
       shell: pwsh
@@ -100,26 +93,45 @@ runs:
       shell: pwsh
       run: '& "$env:GODOT_EXECUTABLE" --version'
 
-    - name: Build Gua Godot addon
-      shell: pwsh
-      working-directory: ${{ inputs.gua-checkout-path }}
-      run: |
-        cmake --preset windows-msvc-release
-        cmake --build --preset windows-msvc-release --target gua-godot --config Release
-
-    - name: Link Gua addon into Godot project
+    - name: Download and link Gua addon
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
-        $guaRoot = "${{ inputs.gua-checkout-path }}"
-        $sourceAddon = Join-Path $guaRoot "examples/godot-gdscript/addons/gua"
-        $builtDll = Join-Path $sourceAddon "bin/Release/gua_godot.windows.debug.x86_64.dll"
-        $flatDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
-        if (Test-Path -LiteralPath $builtDll) {
-          Copy-Item -LiteralPath $builtDll -Destination $flatDll -Force
+        $repository = "${{ inputs.gua-repository }}"
+        $tag = "${{ inputs.gua-plugin-tag }}"
+        $assetPattern = "${{ inputs.gua-plugin-asset-pattern }}"
+        $headers = @{ "User-Agent" = "gua-godot-actions" }
+
+        if ([string]::IsNullOrWhiteSpace($tag)) {
+          $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases" -Headers $headers
+          $release = $releases | Where-Object { $_.tag_name -like "godot-plugin-*" } | Select-Object -First 1
+          if ($null -eq $release) {
+            throw "No godot-plugin-* release was found in ${repository}."
+          }
+        } else {
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases/tags/${tag}" -Headers $headers
         }
-        if (!(Test-Path -LiteralPath $flatDll)) {
-          throw "Gua Godot addon DLL was not found at ${flatDll}."
+
+        $asset = $release.assets | Where-Object { $_.name -like $assetPattern } | Select-Object -First 1
+        if ($null -eq $asset) {
+          throw "No release asset matching '${assetPattern}' was found in release '$($release.tag_name)'."
+        }
+
+        $downloadDir = Join-Path $env:RUNNER_TEMP "gua-godot-plugin-$($release.tag_name)"
+        $archivePath = Join-Path $downloadDir $asset.name
+        $extractDir = Join-Path $downloadDir "extract"
+        New-Item -ItemType Directory -Force $downloadDir | Out-Null
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archivePath -Headers $headers
+        Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force
+
+        $sourceAddon = Join-Path $extractDir "addons/gua"
+        if (!(Test-Path -LiteralPath $sourceAddon)) {
+          throw "The release asset '$($asset.name)' does not contain addons/gua."
+        }
+        $extensionDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
+        $runtimeDll = Join-Path $sourceAddon "bin/gua_runtime.dll"
+        if (!(Test-Path -LiteralPath $extensionDll) -or !(Test-Path -LiteralPath $runtimeDll)) {
+          throw "The release asset '$($asset.name)' is missing the built Gua DLLs."
         }
 
         $addonParent = Join-Path "${{ inputs.project-path }}" "addons"

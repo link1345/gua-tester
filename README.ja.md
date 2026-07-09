@@ -12,9 +12,9 @@ Godot プロジェクトと .NET テストプロジェクトに対して、CI �
 ## できること
 
 - 任意の Godot Windows 版を公式 release からダウンロード
-- `link1345/gua` から GDScript addon を取得
-- `gua-godot` GDExtension を GitHub Actions 上でビルド
-- `examples/godot-gdscript/addons/gua` を利用者の `game/addons/gua` へ配置
+- `link1345/gua` の最新 `godot-plugin-*` リリースを取得
+- ビルド済み Windows DLL を含む `addons/gua` package を展開
+- 展開した addon を利用者の `game/addons/gua` へ配置
 - `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
 
 `Gua.Testing.Godot` は .NET のテストホストですが、起動対象の Godot
@@ -48,7 +48,8 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          gua-ref: main
+          # 省略時は最新の godot-plugin-* リリースを使います。
+          # gua-plugin-tag: godot-plugin-f448370cf009
 ```
 
 `uses: link1345/gua-tester@v1` は、この actions repo を公開して `v1` タグを
@@ -65,8 +66,9 @@ root の `action.yml` は all-in-one action です。
 - `godot-executable-suffix`: 既定値 `win64.exe`
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-ref`: 既定値 `main`
-- `gua-checkout-path`: 既定値 `_deps/gua`
+- `gua-plugin-tag`: 特定の `godot-plugin-*` リリースタグ。省略時は最新の
+  一致するリリースを使います。
+- `gua-plugin-asset-pattern`: 既定値 `gua-godot-plugin-*.zip`
 - `configuration`: 既定値 `Release`
 - `test-logger`: 既定値 `trx;LogFileName=godot-gdscript.trx`
 
@@ -91,11 +93,12 @@ root の `action.yml` は all-in-one action です。
 - uses: link1345/gua-tester/link-gua-gdscript-addon@v1
   with:
     project-path: game
-    gua-ref: main
+    # 省略時は最新の godot-plugin-* リリースを使います。
+    # gua-plugin-tag: godot-plugin-f448370cf009
 ```
 
-`link1345/gua` を checkout し、`gua-godot` をビルドして、
-`examples/godot-gdscript/addons/gua` を `game/addons/gua` にコピーします。
+`link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
+`addons/gua` を `game/addons/gua` にコピーします。
 
 ## addon のリンク方式
 
@@ -103,9 +106,10 @@ Git submodule はリポジトリ単位なので、
 `https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`
 のようなサブディレクトリだけを直接 submodule にはできません。
 
-そのため、この actions repo では GitHub Actions 内で `link1345/gua` を
-checkout し、対象 addon ディレクトリだけを利用者の Godot project へコピーします。
-利用者 repo に addon のコピーを commit しなくて済むのが利点です。
+そのため、この actions repo では `link1345/gua` の `godot-plugin-*` リリース
+asset をダウンロードし、リリース内の `addons/gua` だけを利用者の Godot project
+へコピーします。リリース asset にはビルド済み Windows GDExtension DLL が含まれる
+ので、利用者 workflow 側で addon をソースからビルドする必要はありません。
 
 ## 利用者 repo 側に必要なもの
 

@@ -12,10 +12,9 @@ that prepare the CI environment for a consumer repository's Godot project and
 ## What It Does
 
 - Downloads a selected Godot Windows build from the official release archive
-- Checks out the GDScript addon from `link1345/gua`
-- Builds the `gua-godot` GDExtension on GitHub Actions
-- Copies `examples/godot-gdscript/addons/gua` into the consumer project's
-  `game/addons/gua`
+- Downloads the latest `godot-plugin-*` release from `link1345/gua`
+- Extracts the released `addons/gua` package, including the built Windows DLLs
+- Copies the released addon into the consumer project's `game/addons/gua`
 - Sets `GODOT_EXECUTABLE` and runs `dotnet test`
 
 `Gua.Testing.Godot` is a .NET test host, but the launched Godot project can be a
@@ -49,7 +48,8 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          gua-ref: main
+          # Optional. Leave unset to use the latest godot-plugin-* release.
+          # gua-plugin-tag: godot-plugin-f448370cf009
 ```
 
 `uses: link1345/gua-tester@v1` assumes this actions repository is published and
@@ -67,8 +67,9 @@ The root `action.yml` is an all-in-one action.
 - `godot-executable-suffix`: Default: `win64.exe`
 - `dotnet-version`: Default: `10.0.x`
 - `gua-repository`: Default: `link1345/gua`
-- `gua-ref`: Default: `main`
-- `gua-checkout-path`: Default: `_deps/gua`
+- `gua-plugin-tag`: Specific `godot-plugin-*` release tag. By default, the
+  latest matching release is used.
+- `gua-plugin-asset-pattern`: Default: `gua-godot-plugin-*.zip`
 - `configuration`: Default: `Release`
 - `test-logger`: Default: `trx;LogFileName=godot-gdscript.trx`
 
@@ -93,11 +94,12 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 - uses: link1345/gua-tester/link-gua-gdscript-addon@v1
   with:
     project-path: game
-    gua-ref: main
+    # Optional. Leave unset to use the latest godot-plugin-* release.
+    # gua-plugin-tag: godot-plugin-f448370cf009
 ```
 
-This checks out `link1345/gua`, builds `gua-godot`, and copies
-`examples/godot-gdscript/addons/gua` to `game/addons/gua`.
+This downloads the released `link1345/gua` Godot plugin asset and copies its
+`addons/gua` directory to `game/addons/gua`.
 
 ## Addon Linking
 
@@ -105,9 +107,10 @@ Git submodules work at repository granularity, so they cannot directly link only
 the subdirectory
 `https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`.
 
-For that reason, these actions check out `link1345/gua` during GitHub Actions
-execution and copy only the addon directory into the consumer Godot project.
-The consumer repository does not need to commit a vendored addon copy.
+For that reason, these actions download the `godot-plugin-*` release asset from
+`link1345/gua` and copy only the released `addons/gua` directory into the
+consumer Godot project. The release asset already includes the built Windows
+GDExtension DLLs, so the consumer workflow does not build the addon from source.
 
 ## Consumer Repository Requirements
 
