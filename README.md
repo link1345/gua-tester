@@ -1,27 +1,30 @@
 # Gua Godot Actions
 
-Godot GDScript プロジェクトで Gua を使った CI を簡単に組むための
-GitHub Actions 部品群です。
+English | [日本語](README.ja.md)
 
-この repo 自体はテスト対象ゲームではありません。利用者の repo 側にある
-Godot プロジェクトと .NET テストプロジェクトに対して、CI に必要な準備を
-まとめて実行します。
+GitHub Actions building blocks for setting up CI with Gua in Godot GDScript
+projects.
 
-## できること
+This repository is not a sample game repository. It provides reusable actions
+that prepare the CI environment for a consumer repository's Godot project and
+.NET test project.
 
-- 任意の Godot Windows 版を公式 release からダウンロード
-- `link1345/gua` から GDScript addon を取得
-- `gua-godot` GDExtension を GitHub Actions 上でビルド
-- `examples/godot-gdscript/addons/gua` を利用者の `game/addons/gua` へ配置
-- `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
+## What It Does
 
-`Gua.Testing.Godot` は .NET のテストホストですが、起動対象の Godot
-プロジェクトは GDScript 版で構いません。ゲーム側が Gua addon で
-`ws://127.0.0.1:8765` を立てれば、外部の .NET テストから検証できます。
+- Downloads a selected Godot Windows build from the official release archive
+- Checks out the GDScript addon from `link1345/gua`
+- Builds the `gua-godot` GDExtension on GitHub Actions
+- Copies `examples/godot-gdscript/addons/gua` into the consumer project's
+  `game/addons/gua`
+- Sets `GODOT_EXECUTABLE` and runs `dotnet test`
 
-## 最小 workflow
+`Gua.Testing.Godot` is a .NET test host, but the launched Godot project can be a
+GDScript project. As long as the game starts the Gua addon bridge at
+`ws://127.0.0.1:8765`, external .NET tests can validate the live UI tree.
 
-利用者 repo の `.github/workflows/godot-gdscript.yml` に置く想定です。
+## Minimal Workflow
+
+Place this in the consumer repository at `.github/workflows/godot-gdscript.yml`.
 
 ```yaml
 name: Godot GDScript CI
@@ -49,28 +52,29 @@ jobs:
           gua-ref: main
 ```
 
-`uses: link1345/gua-tester@v1` は、この actions repo を公開して `v1` タグを
-切った後の指定です。別の owner/repo 名で公開する場合はそこを変えます。
+`uses: link1345/gua-tester@v1` assumes this actions repository is published and
+tagged as `v1`. Change the owner/repository name if you publish it elsewhere.
 
-## root action inputs
+## Root Action Inputs
 
-root の `action.yml` は all-in-one action です。
+The root `action.yml` is an all-in-one action.
 
-- `project-path`: Godot プロジェクトのパス。既定値は `game`
-- `test-project`: `Gua.Testing.Godot` を参照する .NET テスト csproj
-- `godot-version`: `4.7` など
-- `godot-status`: `stable`、`rc1`、`dev1` など
-- `godot-executable-suffix`: 既定値 `win64.exe`
-- `dotnet-version`: 既定値 `10.0.x`
-- `gua-repository`: 既定値 `link1345/gua`
-- `gua-ref`: 既定値 `main`
-- `gua-checkout-path`: 既定値 `_deps/gua`
-- `configuration`: 既定値 `Release`
-- `test-logger`: 既定値 `trx;LogFileName=godot-gdscript.trx`
+- `project-path`: Path to the Godot project. Default: `game`
+- `test-project`: Path to the .NET test `.csproj` that references
+  `Gua.Testing.Godot`
+- `godot-version`: For example, `4.7`
+- `godot-status`: For example, `stable`, `rc1`, or `dev1`
+- `godot-executable-suffix`: Default: `win64.exe`
+- `dotnet-version`: Default: `10.0.x`
+- `gua-repository`: Default: `link1345/gua`
+- `gua-ref`: Default: `main`
+- `gua-checkout-path`: Default: `_deps/gua`
+- `configuration`: Default: `Release`
+- `test-logger`: Default: `trx;LogFileName=godot-gdscript.trx`
 
-## 個別 action
+## Individual Actions
 
-必要なら all-in-one ではなく、部品ごとに使えます。
+You can also use the smaller actions separately.
 
 ### setup-godot
 
@@ -81,7 +85,7 @@ root の `action.yml` は all-in-one action です。
     godot-status: stable
 ```
 
-`GODOT_EXECUTABLE` を環境変数に設定します。
+This sets the `GODOT_EXECUTABLE` environment variable.
 
 ### link-gua-gdscript-addon
 
@@ -92,26 +96,26 @@ root の `action.yml` は all-in-one action です。
     gua-ref: main
 ```
 
-`link1345/gua` を checkout し、`gua-godot` をビルドして、
-`examples/godot-gdscript/addons/gua` を `game/addons/gua` にコピーします。
+This checks out `link1345/gua`, builds `gua-godot`, and copies
+`examples/godot-gdscript/addons/gua` to `game/addons/gua`.
 
-## addon のリンク方式
+## Addon Linking
 
-Git submodule はリポジトリ単位なので、
-`https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`
-のようなサブディレクトリだけを直接 submodule にはできません。
+Git submodules work at repository granularity, so they cannot directly link only
+the subdirectory
+`https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`.
 
-そのため、この actions repo では GitHub Actions 内で `link1345/gua` を
-checkout し、対象 addon ディレクトリだけを利用者の Godot project へコピーします。
-利用者 repo に addon のコピーを commit しなくて済むのが利点です。
+For that reason, these actions check out `link1345/gua` during GitHub Actions
+execution and copy only the addon directory into the consumer Godot project.
+The consumer repository does not need to commit a vendored addon copy.
 
-## 利用者 repo 側に必要なもの
+## Consumer Repository Requirements
 
-- Godot GDScript project
-- Gua addon を使って bridge を起動するゲーム側コード
-- `Gua.Testing.Godot` を参照する .NET テストプロジェクト
+- A Godot GDScript project
+- Game-side code that starts the Gua bridge through the Gua addon
+- A .NET test project that references `Gua.Testing.Godot`
 
-テストプロジェクト例:
+Example test project:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
