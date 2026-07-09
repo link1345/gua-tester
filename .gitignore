@@ -1,0 +1,23 @@
+# Build outputs
+bin/
+obj/
+.godot/
+TestResults/
+artifacts/
+_deps/
+game/addons/gua/
+
+# IDE and OS files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+!.env.example

@@ -1,0 +1,23 @@
+name: Godot GDScript CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  godot:
+    runs-on: windows-latest
+    steps:
+      - name: Check out game repository
+        uses: actions/checkout@v4
+
+      - name: Run Godot Gua tests
+        uses: link1345/gua-tester@v1
+        with:
+          project-path: game
+          test-project: tests/GuaTester.Tests.csproj
+          godot-version: "4.7"
+          godot-status: stable
+          gua-ref: main

@@ -1,0 +1,135 @@
+name: Gua Godot GDScript CI
+description: Install Godot, build the Gua GDScript addon, link it into a Godot project, and run .NET tests.
+
+inputs:
+  godot-version:
+    description: Godot version without status suffix, for example 4.7 or 4.6.3.
+    required: false
+    default: "4.7"
+  godot-status:
+    description: Godot release status suffix, for example stable, rc1, or dev1.
+    required: false
+    default: stable
+  godot-executable-suffix:
+    description: Godot Windows executable archive suffix. Use win64.exe for GDScript builds.
+    required: false
+    default: win64.exe
+  dotnet-version:
+    description: .NET SDK version used by the external test runner.
+    required: false
+    default: 10.0.x
+  gua-repository:
+    description: Repository containing the Gua addon source.
+    required: false
+    default: link1345/gua
+  gua-ref:
+    description: Git ref used to build the Gua Godot addon.
+    required: false
+    default: main
+  gua-checkout-path:
+    description: Workspace path where the Gua source checkout is placed.
+    required: false
+    default: _deps/gua
+  project-path:
+    description: Path to the consumer Godot project directory.
+    required: false
+    default: game
+  test-project:
+    description: Path to the consumer .NET test project that uses Gua.Testing.Godot.
+    required: true
+  configuration:
+    description: .NET test configuration.
+    required: false
+    default: Release
+  test-logger:
+    description: dotnet test logger argument.
+    required: false
+    default: trx;LogFileName=godot-gdscript.trx
+
+outputs:
+  godot-executable:
+    description: Absolute path to the downloaded Godot executable.
+    value: ${{ steps.download-godot.outputs.godot-executable }}
+  addon-path:
+    description: Path where the Gua addon was linked inside the Godot project.
+    value: ${{ inputs.project-path }}/addons/gua
+
+runs:
+  using: composite
+  steps:
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Check out Gua source
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.gua-repository }}
+        ref: ${{ inputs.gua-ref }}
+        path: ${{ inputs.gua-checkout-path }}
+
+    - name: Download Godot
+      id: download-godot
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $tag = "${{ inputs.godot-version }}-${{ inputs.godot-status }}"
+        $archiveName = "Godot_v${tag}_${{ inputs.godot-executable-suffix }}.zip"
+        $downloadUrl = "https://github.com/godotengine/godot-builds/releases/download/${tag}/${archiveName}"
+        $installDir = Join-Path $env:RUNNER_TEMP "godot-${tag}"
+        $archivePath = Join-Path $env:RUNNER_TEMP $archiveName
+
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+        Expand-Archive -Path $archivePath -DestinationPath $installDir -Force
+
+        $executableName = "Godot_v${tag}_${{ inputs.godot-executable-suffix }}"
+        $godot = Get-ChildItem -Path $installDir -Recurse -Filter $executableName | Select-Object -First 1
+        if ($null -eq $godot) {
+          throw "Could not find Godot executable '${executableName}' in ${archiveName}."
+        }
+
+        "GODOT_EXECUTABLE=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "godot-executable=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    - name: Print Godot version
+      shell: pwsh
+      run: '& "$env:GODOT_EXECUTABLE" --version'
+
+    - name: Build Gua Godot addon
+      shell: pwsh
+      working-directory: ${{ inputs.gua-checkout-path }}
+      run: |
+        cmake --preset windows-msvc-release
+        cmake --build --preset windows-msvc-release --target gua-godot --config Release
+
+    - name: Link Gua addon into Godot project
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $guaRoot = "${{ inputs.gua-checkout-path }}"
+        $sourceAddon = Join-Path $guaRoot "examples/godot-gdscript/addons/gua"
+        $builtDll = Join-Path $sourceAddon "bin/Release/gua_godot.windows.debug.x86_64.dll"
+        $flatDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
+        if (Test-Path -LiteralPath $builtDll) {
+          Copy-Item -LiteralPath $builtDll -Destination $flatDll -Force
+        }
+        if (!(Test-Path -LiteralPath $flatDll)) {
+          throw "Gua Godot addon DLL was not found at ${flatDll}."
+        }
+
+        $addonParent = Join-Path "${{ inputs.project-path }}" "addons"
+        $targetAddon = Join-Path $addonParent "gua"
+        New-Item -ItemType Directory -Force $addonParent | Out-Null
+        if (Test-Path -LiteralPath $targetAddon) {
+          Remove-Item -LiteralPath $targetAddon -Recurse -Force
+        }
+        Copy-Item -LiteralPath $sourceAddon -Destination $targetAddon -Recurse -Force
+
+    - name: Restore tests
+      shell: pwsh
+      run: dotnet restore "${{ inputs.test-project }}"
+
+    - name: Run Godot tests
+      shell: pwsh
+      run: dotnet test "${{ inputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --logger "${{ inputs.test-logger }}"

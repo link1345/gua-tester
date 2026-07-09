@@ -1,0 +1,51 @@
+name: Setup Godot
+description: Download a Godot Windows build and expose GODOT_EXECUTABLE.
+
+inputs:
+  godot-version:
+    description: Godot version without status suffix, for example 4.7 or 4.6.3.
+    required: false
+    default: "4.7"
+  godot-status:
+    description: Godot release status suffix, for example stable, rc1, or dev1.
+    required: false
+    default: stable
+  executable-suffix:
+    description: Godot Windows executable archive suffix. Use win64.exe for GDScript builds.
+    required: false
+    default: win64.exe
+
+outputs:
+  godot-executable:
+    description: Absolute path to the downloaded Godot executable.
+    value: ${{ steps.download.outputs.godot-executable }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download Godot
+      id: download
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $tag = "${{ inputs.godot-version }}-${{ inputs.godot-status }}"
+        $archiveName = "Godot_v${tag}_${{ inputs.executable-suffix }}.zip"
+        $downloadUrl = "https://github.com/godotengine/godot-builds/releases/download/${tag}/${archiveName}"
+        $installDir = Join-Path $env:RUNNER_TEMP "godot-${tag}"
+        $archivePath = Join-Path $env:RUNNER_TEMP $archiveName
+
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+        Expand-Archive -Path $archivePath -DestinationPath $installDir -Force
+
+        $executableName = "Godot_v${tag}_${{ inputs.executable-suffix }}"
+        $godot = Get-ChildItem -Path $installDir -Recurse -Filter $executableName | Select-Object -First 1
+        if ($null -eq $godot) {
+          throw "Could not find Godot executable '${executableName}' in ${archiveName}."
+        }
+
+        "GODOT_EXECUTABLE=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "godot-executable=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    - name: Print Godot version
+      shell: pwsh
+      run: '& "$env:GODOT_EXECUTABLE" --version'

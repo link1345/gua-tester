@@ -1,0 +1,65 @@
+name: Link Gua GDScript Addon
+description: Build link1345/gua's Godot GDExtension addon and copy it into a Godot project.
+
+inputs:
+  gua-repository:
+    description: Repository containing the Gua addon source.
+    required: false
+    default: link1345/gua
+  gua-ref:
+    description: Git ref used to build the Gua Godot addon.
+    required: false
+    default: main
+  gua-checkout-path:
+    description: Workspace path where the Gua source checkout is placed.
+    required: false
+    default: _deps/gua
+  project-path:
+    description: Path to the consumer Godot project directory.
+    required: false
+    default: game
+
+outputs:
+  addon-path:
+    description: Path where the addon was copied inside the Godot project.
+    value: ${{ inputs.project-path }}/addons/gua
+
+runs:
+  using: composite
+  steps:
+    - name: Check out Gua source
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.gua-repository }}
+        ref: ${{ inputs.gua-ref }}
+        path: ${{ inputs.gua-checkout-path }}
+
+    - name: Build Gua Godot addon
+      shell: pwsh
+      working-directory: ${{ inputs.gua-checkout-path }}
+      run: |
+        cmake --preset windows-msvc-release
+        cmake --build --preset windows-msvc-release --target gua-godot --config Release
+
+    - name: Copy addon into Godot project
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $guaRoot = "${{ inputs.gua-checkout-path }}"
+        $sourceAddon = Join-Path $guaRoot "examples/godot-gdscript/addons/gua"
+        $builtDll = Join-Path $sourceAddon "bin/Release/gua_godot.windows.debug.x86_64.dll"
+        $flatDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
+        if (Test-Path -LiteralPath $builtDll) {
+          Copy-Item -LiteralPath $builtDll -Destination $flatDll -Force
+        }
+        if (!(Test-Path -LiteralPath $flatDll)) {
+          throw "Gua Godot addon DLL was not found at ${flatDll}."
+        }
+
+        $addonParent = Join-Path "${{ inputs.project-path }}" "addons"
+        $targetAddon = Join-Path $addonParent "gua"
+        New-Item -ItemType Directory -Force $addonParent | Out-Null
+        if (Test-Path -LiteralPath $targetAddon) {
+          Remove-Item -LiteralPath $targetAddon -Recurse -Force
+        }
+        Copy-Item -LiteralPath $sourceAddon -Destination $targetAddon -Recurse -Force
