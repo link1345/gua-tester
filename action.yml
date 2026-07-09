@@ -1,6 +1,10 @@
 name: Gua Godot GDScript CI
 description: Install Godot, build the Gua GDScript addon, link it into a Godot project, and run .NET tests.
 
+branding:
+  icon: 'bell'
+  color: 'green'
+
 inputs:
   godot-version:
     description: Godot version without status suffix, for example 4.7 or 4.6.3.
