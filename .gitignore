@@ -6,6 +6,11 @@ TestResults/
 artifacts/
 _deps/
 game/addons/gua/
+visual-report/viewer-src/node_modules/
+visual-report/viewer-src/.astro/
+visual-report/viewer-src/dist/
+visual-report/viewer-src/test-results/
+visual-report/viewer-src/playwright-report/
 
 # IDE and OS files
 .vs/

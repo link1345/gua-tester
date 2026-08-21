@@ -5,15 +5,21 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   godot:
     runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      pages-ready: ${{ steps.pages-report.outcome == 'success' }}
     steps:
       - name: Check out game repository
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
+        id: gua-tests
         uses: link1345/gua-tester@main
         with:
           project-path: game
@@ -22,3 +28,36 @@ jobs:
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
           # gua-plugin-tag: gua-v0.15.0
+
+      - name: Upload pull-request visual failures
+        if: failure() && github.event_name == 'pull_request'
+        uses: link1345/gua-tester/visual-report@main
+        with:
+          artifact-path: artifacts/gua
+          test-outcome: ${{ steps.gua-tests.outcome }}
+          upload-target: workflow
+          workflow-artifact-name: gua-visual-report
+
+      - name: Prepare latest main visual report
+        id: pages-report
+        if: always() && github.event_name != 'pull_request'
+        uses: link1345/gua-tester/visual-report@main
+        with:
+          artifact-path: artifacts/gua
+          test-outcome: ${{ steps.gua-tests.outcome }}
+          upload-target: pages
+
+  deploy-visual-report:
+    needs: godot
+    if: always() && github.event_name != 'pull_request' && needs.godot.outputs.pages-ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy visual report to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

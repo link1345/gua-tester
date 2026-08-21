@@ -102,6 +102,60 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 This downloads the released `link1345/gua` Godot plugin asset and copies its
 `addons/gua` directory to `game/addons/gua`.
 
+### visual-report
+
+`Gua.Testing.Visual` writes `comparison.json` and the available PNG files for
+each failed comparison. The `visual-report` action converts that raw data into a
+public `report.json`, combines it with the bundled Astro-built static viewer,
+and uploads either a Pages artifact or a regular workflow artifact. Consumers do
+not install Astro, Node.js, or npm dependencies.
+
+```yaml
+- name: Run Godot Gua tests
+  id: gua-tests
+  uses: link1345/gua-tester@main
+  with:
+    project-path: game
+    test-project: tests/GuaTester.Tests.csproj
+
+- name: Prepare latest main visual report
+  id: visual-report
+  if: always() && github.event_name != 'pull_request'
+  uses: link1345/gua-tester/visual-report@main
+  with:
+    artifact-path: artifacts/gua
+    test-outcome: ${{ steps.gua-tests.outcome }}
+    upload-target: pages
+```
+
+The action accepts:
+
+- `artifact-path`: Visual artifact directory. Default: `artifacts/gua`
+- `test-outcome`: Required test step outcome: `success`, `failure`, or `cancelled`
+- `upload-target`: `pages` or `workflow`. Default: `pages`
+- `pages-artifact-name`: Pages artifact name. Default: `github-pages`
+- `workflow-artifact-name`: Workflow artifact name. Default: `gua-visual-report`
+- `retention-days`: Artifact retention period. Default: `7`
+
+It outputs `comparison-count` and `artifact-id`. Deployment remains a separate job
+owned by the consumer workflow, where `pages: write`, `id-token: write`, and the
+`github-pages` environment can be reviewed explicitly. Configure the repository's
+Pages source as **GitHub Actions** before the first deployment. See the complete
+[`examples/godot-gdscript-ci.yml`](examples/godot-gdscript-ci.yml) workflow.
+If `pages-artifact-name` is customized, pass the same value as `artifact_name`
+to `actions/deploy-pages`.
+
+Use `upload-target: pages` for `main` or manually dispatched runs. On failed pull
+requests use `upload-target: workflow`; the downloaded artifact already contains
+the viewer and normalized report. Because the viewer loads `report.json`, serve
+the extracted directory over local HTTP rather than opening `index.html` through
+`file://` (for example, `python -m http.server`). A successful main run publishes
+a success status page so a previous failure is not presented as current.
+
+> [!WARNING]
+> Screenshots can contain rendered secrets or personal information. Review the
+> captured content before enabling Pages, especially for public repositories.
+
 ## Addon Linking
 
 Git submodules work at repository granularity, so they cannot directly link only

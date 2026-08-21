@@ -1,0 +1,148 @@
+---
+const title = "Gua Visual Report";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Gua.Testing.Visual</p>
+        <h1>{title} <span id="status" class="status">Loading</span></h1>
+        <div id="run-meta" class="run-meta" aria-label="Test run metadata"></div>
+      </div>
+    </header>
+
+    <main>
+      <div id="load-error" class="notice error" role="alert" hidden></div>
+      <section id="empty-state" class="empty-state" hidden>
+        <h2 id="empty-title"></h2>
+        <p id="empty-message"></p>
+      </section>
+
+      <div id="report-layout" class="report-layout" hidden>
+        <aside aria-label="Visual comparisons">
+          <h2>Comparisons</h2>
+          <ol id="comparison-list" class="comparison-list"></ol>
+        </aside>
+
+        <article id="comparison-detail" tabindex="-1">
+          <header class="detail-header">
+            <div>
+              <p id="detail-variant" class="eyebrow"></p>
+              <h2 id="detail-name"></h2>
+            </div>
+            <span id="detail-reason" class="reason"></span>
+          </header>
+
+          <dl class="metrics" aria-label="Comparison metrics">
+            <div><dt>Actual size</dt><dd id="metric-size"></dd></div>
+            <div><dt>Different ratio</dt><dd id="metric-ratio"></dd></div>
+            <div><dt>Different pixels</dt><dd id="metric-different"></dd></div>
+            <div><dt>Compared pixels</dt><dd id="metric-compared"></dd></div>
+            <div><dt>Pixel threshold</dt><dd id="metric-threshold"></dd></div>
+            <div><dt>Allowed ratio</dt><dd id="metric-allowed"></dd></div>
+          </dl>
+
+          <nav class="mode-tabs" aria-label="Viewer mode">
+            <button id="triptych-tab" type="button" aria-selected="true" aria-controls="triptych-panel">Three images</button>
+            <button id="slider-tab" type="button" aria-selected="false" aria-controls="slider-panel">Comparison slider</button>
+            <span id="mode-note"></span>
+          </nav>
+
+          <section id="triptych-panel" class="triptych" aria-labelledby="triptych-tab">
+            <figure data-panel="expected">
+              <figcaption><strong>Before / Expected</strong><span id="expected-size"></span></figcaption>
+              <div class="image-stage"><img id="expected-image" alt="Expected screenshot" /><p id="expected-placeholder" class="placeholder"></p></div>
+            </figure>
+            <figure data-panel="diff">
+              <figcaption><strong>Diff</strong><span id="diff-size"></span></figcaption>
+              <div class="image-stage"><img id="diff-image" alt="Difference image" /><p id="diff-placeholder" class="placeholder"></p></div>
+            </figure>
+            <figure data-panel="actual">
+              <figcaption><strong>After / Actual</strong><span id="actual-size"></span></figcaption>
+              <div class="image-stage"><img id="actual-image" alt="Actual screenshot" /><p id="actual-placeholder" class="placeholder"></p></div>
+            </figure>
+          </section>
+
+          <section id="slider-panel" aria-labelledby="slider-tab" hidden>
+            <div id="slider-unavailable" class="notice" hidden></div>
+            <div id="slider-view" class="slider-view">
+              <div class="slider-stage">
+                <img id="slider-actual" alt="Actual screenshot" />
+                <div id="slider-expected-layer" class="slider-expected-layer"><img id="slider-expected" alt="Expected screenshot" /></div>
+                <div class="slider-divider" aria-hidden="true"></div>
+                <span class="image-label expected-label">Expected</span>
+                <span class="image-label actual-label">Actual</span>
+              </div>
+              <label for="comparison-position">Expected image visibility: <output id="comparison-output">50%</output></label>
+              <input id="comparison-position" type="range" min="0" max="100" value="50" aria-label="Expected image visibility percentage" />
+            </div>
+          </section>
+        </article>
+      </div>
+    </main>
+    <script is:inline src="./viewer.js"></script>
+  </body>
+</html>
+
+<style is:global>
+  :root { color-scheme:dark; --bg:#080d19; --panel:#121a2b; --panel-2:#19243a; --line:#34415c; --text:#f4f7ff; --muted:#aab6cf; --accent:#79adff; --success:#4fd69c; --failure:#ff7a90; --cancelled:#ffcd70; --split:50%; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-width:300px; background:radial-gradient(circle at top,#14213c 0,var(--bg) 38rem); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  button,input { font:inherit; }
+  button:focus-visible,input:focus-visible,a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  .site-header,main { width:min(1500px,100%); margin:auto; padding:24px; }
+  .site-header { padding-bottom:4px; }
+  h1,h2,p { margin-top:0; }
+  h1 { margin-bottom:6px; font-size:clamp(1.7rem,4vw,2.6rem); }
+  .eyebrow { margin-bottom:3px; color:var(--accent); font-size:.78rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; overflow-wrap:anywhere; }
+  .status,.reason { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:3px 9px; background:var(--panel); font-size:.78rem; vertical-align:middle; }
+  .status.success { color:var(--success); }.status.failure { color:var(--failure); }.status.cancelled { color:var(--cancelled); }
+  .run-meta { display:flex; flex-wrap:wrap; gap:6px 18px; color:var(--muted); }
+  .run-meta a { color:var(--accent); }
+  .report-layout { display:grid; grid-template-columns:minmax(230px,320px) minmax(0,1fr); gap:18px; align-items:start; }
+  aside,article,.empty-state,.notice { border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb,var(--panel) 94%,transparent); }
+  aside { position:sticky; top:16px; max-height:calc(100vh - 32px); padding:16px; overflow:auto; }
+  aside h2 { font-size:1rem; }
+  article { min-width:0; padding:20px; }
+  .comparison-list { display:grid; gap:8px; padding:0; list-style:none; }
+  .comparison-list a { display:block; border:1px solid transparent; border-radius:9px; padding:10px; color:var(--muted); text-decoration:none; }
+  .comparison-list a:hover,.comparison-list a[aria-current="true"] { border-color:var(--accent); background:var(--panel-2); }
+  .comparison-list strong,.comparison-list span { display:block; overflow-wrap:anywhere; }.comparison-list strong { color:var(--text); }
+  .detail-header { display:flex; justify-content:space-between; gap:14px; align-items:start; }
+  .detail-header h2 { margin-bottom:0; overflow-wrap:anywhere; }
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:9px; margin:18px 0; }
+  .metrics div { border:1px solid var(--line); border-radius:9px; padding:10px 12px; background:var(--panel-2); }
+  .metrics dt { color:var(--muted); font-size:.75rem; text-transform:uppercase; }.metrics dd { margin:2px 0 0; font-weight:700; overflow-wrap:anywhere; }
+  .mode-tabs { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0 10px; }
+  .mode-tabs button { border:1px solid var(--line); border-radius:8px; padding:8px 13px; background:var(--panel); color:var(--text); cursor:pointer; }
+  .mode-tabs button[aria-selected="true"] { border-color:var(--accent); background:#20365d; }.mode-tabs button:disabled { cursor:not-allowed; opacity:.45; }
+  #mode-note { color:var(--muted); }
+  [hidden] { display:none !important; }
+  .triptych { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  figure { min-width:0; margin:0; border:1px solid var(--line); border-radius:11px; overflow:hidden; background:var(--panel); }
+  figcaption { display:flex; justify-content:space-between; gap:8px; padding:9px 11px; color:var(--muted); }
+  figcaption strong { color:var(--text); }
+  .image-stage { min-height:170px; display:grid; place-items:center; overflow:auto; background-color:#080c15; background-image:linear-gradient(45deg,#131b2d 25%,transparent 25%),linear-gradient(-45deg,#131b2d 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#131b2d 75%),linear-gradient(-45deg,transparent 75%,#131b2d 75%); background-size:24px 24px; background-position:0 0,0 12px,12px -12px,-12px 0; }
+  .image-stage img { display:block; width:100%; height:auto; }.placeholder { margin:0; padding:26px; color:var(--muted); text-align:center; }
+  .slider-view { width:min(1200px,100%); margin:auto; }
+  .slider-stage { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:11px; background:#080c15; }
+  .slider-stage img { display:block; width:100%; height:auto; }
+  .slider-expected-layer { position:absolute; inset:0; clip-path:inset(0 calc(100% - var(--split)) 0 0); }
+  .slider-divider { position:absolute; top:0; bottom:0; left:var(--split); width:3px; transform:translateX(-1px); background:white; box-shadow:0 0 0 1px #0008; pointer-events:none; }
+  .image-label { position:absolute; top:10px; border-radius:6px; padding:3px 7px; background:#05070bcc; font-weight:700; pointer-events:none; }.expected-label { left:10px; }.actual-label { right:10px; }
+  #comparison-position { width:100%; margin:14px 0 2px; accent-color:var(--accent); }
+  .notice,.empty-state { padding:20px; }.notice { border-left:4px solid var(--failure); color:var(--muted); }.error { color:var(--failure); }
+  @media (max-width:900px) { .report-layout { grid-template-columns:1fr; } aside { position:static; max-height:none; } .comparison-list { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); } }
+  @media (max-width:700px) { .site-header,main { padding:16px; }.triptych { grid-template-columns:1fr; }.detail-header { display:block; }.reason { margin-top:8px; } }
+</style>
