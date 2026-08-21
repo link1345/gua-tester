@@ -101,6 +101,58 @@ root の `action.yml` は all-in-one action です。
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
 `addons/gua` を `game/addons/gua` にコピーします。
 
+### visual-report
+
+`Gua.Testing.Visual` は比較失敗ごとに `comparison.json` と利用可能なPNGを出力します。
+`visual-report` action はrawデータを公開用 `report.json` へ変換し、同梱済みの
+Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow artifactとして
+アップロードします。利用側CIでAstro、Node.js、npm依存をインストールする必要はありません。
+
+```yaml
+- name: Run Godot Gua tests
+  id: gua-tests
+  uses: link1345/gua-tester@main
+  with:
+    project-path: game
+    test-project: tests/GuaTester.Tests.csproj
+
+- name: Prepare latest main visual report
+  id: visual-report
+  if: always() && github.event_name != 'pull_request'
+  uses: link1345/gua-tester/visual-report@main
+  with:
+    artifact-path: artifacts/gua
+    test-outcome: ${{ steps.gua-tests.outcome }}
+    upload-target: pages
+```
+
+入力は次のとおりです。
+
+- `artifact-path`: Visual artifact directory。既定値は `artifacts/gua`
+- `test-outcome`: 必須。テストstepの結果で、`success`、`failure`、`cancelled` のいずれか
+- `upload-target`: `pages` または `workflow`。既定値は `pages`
+- `pages-artifact-name`: Pages artifact名。既定値は `github-pages`
+- `workflow-artifact-name`: 通常artifact名。既定値は `gua-visual-report`
+- `retention-days`: artifactの保持日数。既定値は `7`
+
+出力は `comparison-count` と `artifact-id` です。実際のdeployは利用側workflowの
+専用jobで行い、`pages: write`、`id-token: write`、`github-pages` environmentを
+明示してください。初回deploy前にrepositoryのPages sourceを **GitHub Actions**
+へ設定します。完全な例は
+[`examples/godot-gdscript-ci.yml`](examples/godot-gdscript-ci.yml) にあります。
+`pages-artifact-name` を変更した場合は、同じ値を `actions/deploy-pages` の
+`artifact_name` に渡してください。
+
+`main` または手動実行では `upload-target: pages` を使います。pull requestの失敗時は
+`upload-target: workflow` を使うと、Viewerと正規化済みreportを含む通常artifactを
+保存できます。Viewerは `report.json` を読み込むため、ダウンロード後は `file://` で
+直接開かず、展開先を `python -m http.server` などでHTTP配信してください。
+mainが成功した場合は成功状態ページを公開し、以前の失敗を現在の結果に見せません。
+
+> [!WARNING]
+> Screenshotには、画面へ描画された秘密情報や個人情報が含まれる可能性があります。
+> 特にpublic repositoryでPagesを有効にする前に、capture内容を確認してください。
+
 ## addon のリンク方式
 
 Git submodule はリポジトリ単位なので、

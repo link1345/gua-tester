@@ -1,0 +1,91 @@
+name: Prepare Gua visual report
+description: Build a static Gua visual report and upload it as a Pages or workflow artifact.
+
+inputs:
+  artifact-path:
+    description: Directory containing Gua.Testing.Visual comparison data.
+    required: false
+    default: artifacts/gua
+  test-outcome:
+    description: Outcome of the Gua test step. Must be success, failure, or cancelled.
+    required: true
+  upload-target:
+    description: Upload as a GitHub Pages artifact (pages) or a regular Actions artifact (workflow).
+    required: false
+    default: pages
+  pages-artifact-name:
+    description: Name of the GitHub Pages artifact.
+    required: false
+    default: github-pages
+  workflow-artifact-name:
+    description: Name of the regular Actions artifact.
+    required: false
+    default: gua-visual-report
+  retention-days:
+    description: Number of days to retain the uploaded artifact.
+    required: false
+    default: "7"
+
+outputs:
+  comparison-count:
+    description: Number of visual comparisons included in the report.
+    value: ${{ steps.build.outputs.comparison-count }}
+  artifact-id:
+    description: ID of the uploaded artifact.
+    value: ${{ steps.upload-pages.outputs.artifact_id || steps.upload-workflow.outputs.artifact-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate upload target
+      shell: pwsh
+      env:
+        GUA_VISUAL_UPLOAD_TARGET: ${{ inputs.upload-target }}
+      run: |
+        if ($env:GUA_VISUAL_UPLOAD_TARGET -notin @("pages", "workflow")) {
+          throw "upload-target must be 'pages' or 'workflow'."
+        }
+
+    - name: Build visual report site
+      id: build
+      shell: pwsh
+      env:
+        GUA_VISUAL_ACTION_PATH: ${{ github.action_path }}
+        GUA_VISUAL_ARTIFACT_PATH: ${{ inputs.artifact-path }}
+        GUA_VISUAL_TEST_OUTCOME: ${{ inputs.test-outcome }}
+        GUA_VISUAL_SITE_PATH: ${{ runner.temp }}/gua-visual-report-${{ github.run_id }}-${{ github.run_attempt }}
+        GUA_VISUAL_REPOSITORY: ${{ github.repository }}
+        GUA_VISUAL_RUN_ID: ${{ github.run_id }}
+        GUA_VISUAL_RUN_NUMBER: ${{ github.run_number }}
+        GUA_VISUAL_SHA: ${{ github.sha }}
+      run: |
+        & "$env:GUA_VISUAL_ACTION_PATH/build-report.ps1" `
+          -ArtifactPath $env:GUA_VISUAL_ARTIFACT_PATH `
+          -TestOutcome $env:GUA_VISUAL_TEST_OUTCOME `
+          -OutputPath $env:GUA_VISUAL_SITE_PATH `
+          -AllowedOutputRoot $env:RUNNER_TEMP `
+          -ViewerTemplatePath "$env:GUA_VISUAL_ACTION_PATH/viewer" `
+          -Repository $env:GUA_VISUAL_REPOSITORY `
+          -RunId $env:GUA_VISUAL_RUN_ID `
+          -RunNumber $env:GUA_VISUAL_RUN_NUMBER `
+          -CommitSha $env:GUA_VISUAL_SHA `
+          -GithubOutput $env:GITHUB_OUTPUT
+
+    - name: Upload GitHub Pages artifact
+      if: inputs.upload-target == 'pages'
+      id: upload-pages
+      uses: actions/upload-pages-artifact@v4
+      with:
+        name: ${{ inputs.pages-artifact-name }}
+        path: ${{ steps.build.outputs.site-path }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Upload workflow artifact
+      if: inputs.upload-target == 'workflow'
+      id: upload-workflow
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.workflow-artifact-name }}
+        path: ${{ steps.build.outputs.site-path }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: error

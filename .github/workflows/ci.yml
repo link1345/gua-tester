@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  visual-report-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test visual report site builder
+        shell: pwsh
+        run: ./tests/visual-report-smoke.ps1
+
+  visual-report-viewer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: visual-report/viewer-src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install viewer development dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+      - name: Check and build viewer
+        run: bun run build
+      - name: Test viewer
+        run: node node_modules/playwright/cli.js test
+      - name: Verify bundled viewer is current
+        run: |
+          bun run build:release
+          git diff --exit-code -- ../viewer

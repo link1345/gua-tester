@@ -1,0 +1,19 @@
+{
+  "name": "gua-visual-report-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "build": "astro check && astro build",
+    "build:release": "bun run build && bun scripts/sync-viewer.mjs",
+    "test:e2e": "node node_modules/playwright/cli.js test"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "astro": "7.2.4",
+    "typescript": "6.0.2"
+  }
+}
