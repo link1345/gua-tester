@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@main
+        uses: link1345/gua-tester@v1.3
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
