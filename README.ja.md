@@ -1,15 +1,17 @@
-# Gua Godot Actions
+# Gua Tester Actions
 
 [English](README.md) | 日本語
 
-Godot GDScript プロジェクトで Gua を使った CI を簡単に組むための
-GitHub Actions 部品群です。
+Godot 4.7／Unity 6プロジェクトでGua UIテストをCI実行するための
+GitHub Actions部品群です。
 
-この repo 自体はテスト対象ゲームではありません。利用者の repo 側にある
-Godot プロジェクトと .NET テストプロジェクトに対して、CI に必要な準備を
-まとめて実行します。
+このrepo自体はテスト対象ゲームではありません。利用者repo向けにGodotの
+composite Action、Unityのreusable workflow、engine共通のVisual report機能を
+提供します。
 
-## できること
+## Godot 4.7
+
+Godot Actionは次を実行します。
 
 - 任意の Godot Windows 版を公式 release からダウンロード
 - 対象の Godot addon asset を含む `link1345/gua` の最新安定版 `gua-v*` リリースを取得
@@ -21,12 +23,12 @@ Godot プロジェクトと .NET テストプロジェクトに対して、CI �
 プロジェクトは GDScript 版で構いません。ゲーム側が Gua addon で
 `ws://127.0.0.1:8765` を立てれば、外部の .NET テストから検証できます。
 
-## 最小 workflow
+## 最小Godot workflow
 
-利用者 repo の `.github/workflows/godot-gdscript.yml` に置く想定です。
+利用者repoの`.github/workflows/godot.yml`に置く想定です。
 
 ```yaml
-name: Godot GDScript CI
+name: Godot Gua UI Tests
 
 on:
   pull_request:
@@ -42,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@main
+        uses: link1345/gua-tester/godot@v2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -52,12 +54,12 @@ jobs:
           # gua-plugin-tag: gua-v0.15.0
 ```
 
-`uses: link1345/gua-tester@main` は現在公開中の action を使用します。
-安定版の `v1` タグが公開された後は `@v1` に固定できます。
+本番workflowは`@v2`へ固定してください。v2ではroot Actionを削除しています。
+移行方法は[v2への移行](#v2への移行)を参照してください。
 
-## root action inputs
+## Godot Action inputs
 
-root の `action.yml` は all-in-one action です。
+`godot/action.yml`はall-in-one Godot Actionです。
 
 - `project-path`: Godot プロジェクトのパス。既定値は `game`
 - `test-project`: `Gua.Testing.Godot` を参照する .NET テスト csproj
@@ -71,16 +73,16 @@ root の `action.yml` は all-in-one action です。
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-plugin-*.zip`
 - `configuration`: 既定値 `Release`
-- `test-logger`: 既定値 `trx;LogFileName=godot-gdscript.trx`
+- `test-logger`: 既定値 `trx;LogFileName=godot.trx`
 
-## 個別 action
+## Godot構成Action
 
 必要なら all-in-one ではなく、部品ごとに使えます。
 
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@main
+- uses: link1345/gua-tester/setup-godot@v2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -91,7 +93,7 @@ root の `action.yml` は all-in-one action です。
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@main
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v2
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
@@ -101,7 +103,56 @@ root の `action.yml` は all-in-one action です。
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
 `addons/gua` を `game/addons/gua` にコピーします。
 
-### visual-report
+## Unity 6 Windows x64
+
+Unityでは、LinuxでPlayerをビルドし、生成したWindows x64 Mono Playerを
+Windows runner上の外部NUnitテストから操作するreusable workflowを使用します。
+
+```yaml
+name: Unity Gua UI Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  unity:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v2
+    with:
+      project-path: game
+      scene-path: Assets/Scenes/Title.unity
+      test-project: tests/GuaTester.Unity.Tests.csproj
+      unity-version: auto
+      gua-tag: gua-v0.15.0
+    secrets:
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+```
+
+Professionalライセンスでは`UNITY_LICENSE`の代わりに`UNITY_SERIAL`を渡せます。
+fork PRにはActions secretsが渡らないため、呼び出し側で未信頼forkのUnity jobを
+skipしてください。Unity credentialsを渡して未信頼コードを実行する
+`pull_request_target`は使用しません。
+
+必須inputは`project-path`、`scene-path`、`test-project`です。任意inputは
+`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
+`dotnet-version`（`10.0.x`）、`configuration`（`Release`）、`test-logger`
+（`trx;LogFileName=unity.trx`）、`artifact-path`（`artifacts/gua`）です。
+`checkout-repository`と`checkout-ref`は別repoのfixtureを使う高度なoverrideです。
+
+workflowは配布済み`com.link1345.gua-*.tgz`をembedded UPM packageとして配置し、
+rendered Windows x64 Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
+`GUA_UNITY_ARTIFACT_PLAYER`を設定し、Unity build log、Player、TRX、Gua診断・
+Visual artifactを保存します。対象はUnity 6000.0以降です。IL2CPP、Windows以外の
+Player、Editor Play Mode CI、IMGUI、EditorWindow自動化はv2の対象外です。
+
+`gua-tag`で選ぶUPM packageと、テストprojectが参照する`Gua.Testing.Unity`の
+バージョンは揃えてください。
+
+## Visual report
 
 `Gua.Testing.Visual` は比較失敗ごとに `comparison.json` と利用可能なPNGを出力します。
 `visual-report` action はrawデータを公開用 `report.json` へ変換し、同梱済みの
@@ -111,7 +162,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester@main
+  uses: link1345/gua-tester/godot@v2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -119,7 +170,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@main
+  uses: link1345/gua-tester/visual-report@v2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -139,7 +190,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 専用jobで行い、`pages: write`、`id-token: write`、`github-pages` environmentを
 明示してください。初回deploy前にrepositoryのPages sourceを **GitHub Actions**
 へ設定します。完全な例は
-[`examples/godot-gdscript-ci.yml`](examples/godot-gdscript-ci.yml) にあります。
+[`examples/godot-ci.yml`](examples/godot-ci.yml)にあります。
 `pages-artifact-name` を変更した場合は、同じ値を `actions/deploy-pages` の
 `artifact_name` に渡してください。
 
@@ -153,7 +204,7 @@ mainが成功した場合は成功状態ページを公開し、以前の失敗�
 > Screenshotには、画面へ描画された秘密情報や個人情報が含まれる可能性があります。
 > 特にpublic repositoryでPagesを有効にする前に、capture内容を確認してください。
 
-## addon のリンク方式
+## Godot addonのリンク方式
 
 Git submodule はリポジトリ単位なので、
 `https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`
@@ -165,7 +216,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 します。リリース asset にはビルド済み Windows GDExtension DLL が含まれるので、
 利用者 workflow 側で addon をソースからビルドする必要はありません。
 
-## 利用者 repo 側に必要なもの
+## Godot利用repo側に必要なもの
 
 - Godot GDScript project
 - Gua addon を使って bridge を起動するゲーム側コード
@@ -190,3 +241,16 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
   </PropertyGroup>
 </Project>
 ```
+
+## v2への移行
+
+v2では、Godotを既定engineに見せないためroot Godot Actionを削除しました。
+
+```diff
+-- uses: link1345/gua-tester@v1.3
++- uses: link1345/gua-tester/godot@v2
+```
+
+Godotの構成Actionである`setup-godot`と`link-gua-gdscript-addon`、engine共通の
+`visual-report`は従来のパスを維持します。既定TRX名は
+`godot-gdscript.trx`から`godot.trx`へ変更しました。

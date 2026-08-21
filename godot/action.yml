@@ -1,4 +1,4 @@
-name: Gua Godot GDScript CI
+name: Gua Godot Tests
 description: Install Godot, download the released Gua GDScript addon, link it into a Godot project, and run .NET tests.
 
 branding:
@@ -48,7 +48,7 @@ inputs:
   test-logger:
     description: dotnet test logger argument.
     required: false
-    default: trx;LogFileName=godot-gdscript.trx
+    default: trx;LogFileName=godot.trx
 
 outputs:
   godot-executable:

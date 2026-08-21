@@ -1,15 +1,17 @@
-# Gua Godot Actions
+# Gua Tester Actions
 
 English | [日本語](README.ja.md)
 
-GitHub Actions building blocks for setting up CI with Gua in Godot GDScript
-projects.
+GitHub Actions building blocks for running Gua UI tests in Godot 4.7 and
+Unity 6 projects.
 
-This repository is not a sample game repository. It provides reusable actions
-that prepare the CI environment for a consumer repository's Godot project and
-.NET test project.
+This repository is not a sample game repository. It provides a Godot composite
+action, a Unity reusable workflow, and engine-neutral visual report tooling for
+consumer repositories.
 
-## What It Does
+## Godot 4.7
+
+The Godot action:
 
 - Downloads a selected Godot Windows build from the official release archive
 - Downloads the latest stable `gua-v*` release containing a matching Godot addon asset from `link1345/gua`
@@ -21,12 +23,12 @@ that prepare the CI environment for a consumer repository's Godot project and
 GDScript project. As long as the game starts the Gua addon bridge at
 `ws://127.0.0.1:8765`, external .NET tests can validate the live UI tree.
 
-## Minimal Workflow
+## Minimal Godot Workflow
 
-Place this in the consumer repository at `.github/workflows/godot-gdscript.yml`.
+Place this in the consumer repository at `.github/workflows/godot.yml`.
 
 ```yaml
-name: Godot GDScript CI
+name: Godot Gua UI Tests
 
 on:
   pull_request:
@@ -42,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@v1.3
+        uses: link1345/gua-tester/godot@v2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -52,12 +54,12 @@ jobs:
           # gua-plugin-tag: gua-v0.15.0
 ```
 
-`uses: link1345/gua-tester@main` uses the currently published action. Once a
-stable `v1` tag is available, consumers can pin to `@v1` instead.
+Pin production workflows to `@v2`. The root action was removed in v2; see the
+[v2 migration](#v2-migration) section.
 
-## Root Action Inputs
+## Godot Action Inputs
 
-The root `action.yml` is an all-in-one action.
+`godot/action.yml` is the all-in-one Godot action.
 
 - `project-path`: Path to the Godot project. Default: `game`
 - `test-project`: Path to the .NET test `.csproj` that references
@@ -72,16 +74,16 @@ The root `action.yml` is an all-in-one action.
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-plugin-*.zip`
 - `configuration`: Default: `Release`
-- `test-logger`: Default: `trx;LogFileName=godot-gdscript.trx`
+- `test-logger`: Default: `trx;LogFileName=godot.trx`
 
-## Individual Actions
+## Godot Component Actions
 
 You can also use the smaller actions separately.
 
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@main
+- uses: link1345/gua-tester/setup-godot@v2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -92,7 +94,7 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@main
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v2
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
@@ -102,7 +104,60 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 This downloads the released `link1345/gua` Godot plugin asset and copies its
 `addons/gua` directory to `game/addons/gua`.
 
-### visual-report
+## Unity 6 Windows x64
+
+Unity uses a reusable workflow because the Unity Player is built on Linux and
+the resulting Windows x64 Mono Player is exercised by external NUnit tests on a
+Windows runner.
+
+```yaml
+name: Unity Gua UI Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  unity:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v2
+    with:
+      project-path: game
+      scene-path: Assets/Scenes/Title.unity
+      test-project: tests/GuaTester.Unity.Tests.csproj
+      unity-version: auto
+      gua-tag: gua-v0.15.0
+    secrets:
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+```
+
+Professional licenses can pass `UNITY_SERIAL` instead of `UNITY_LICENSE`.
+Fork pull requests do not receive Actions secrets, so the calling workflow must
+skip the Unity job for untrusted forks. Do not use `pull_request_target` to run
+untrusted game code with Unity credentials.
+
+Required inputs are `project-path`, `scene-path`, and `test-project`. Optional
+inputs are `unity-version` (`auto`), `gua-repository` (`link1345/gua`),
+`gua-tag`, `dotnet-version` (`10.0.x`), `configuration` (`Release`),
+`test-logger` (`trx;LogFileName=unity.trx`), and `artifact-path`
+(`artifacts/gua`). `checkout-repository` and `checkout-ref` are advanced
+overrides used when the project and tests come from another repository.
+
+The workflow installs the released `com.link1345.gua-*.tgz` as an embedded UPM
+package, builds a rendered Windows x64 Mono Player, and sets both
+`GUA_UNITY_PLAYER` and `GUA_UNITY_ARTIFACT_PLAYER` for `dotnet test`. Unity
+build logs, the Player, TRX results, and Gua diagnostic/visual artifacts are
+retained as workflow artifacts. Unity 6000.0+ is required; IL2CPP, non-Windows
+Players, Editor Play Mode CI, IMGUI, and EditorWindow automation are outside the
+v2 workflow scope.
+
+Keep the UPM release selected by `gua-tag` aligned with the
+`Gua.Testing.Unity` NuGet version used by the test project.
+
+## Visual reports
 
 `Gua.Testing.Visual` writes `comparison.json` and the available PNG files for
 each failed comparison. The `visual-report` action converts that raw data into a
@@ -113,7 +168,7 @@ not install Astro, Node.js, or npm dependencies.
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester@main
+  uses: link1345/gua-tester/godot@v2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -121,7 +176,7 @@ not install Astro, Node.js, or npm dependencies.
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@main
+  uses: link1345/gua-tester/visual-report@v2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -141,7 +196,7 @@ It outputs `comparison-count` and `artifact-id`. Deployment remains a separate j
 owned by the consumer workflow, where `pages: write`, `id-token: write`, and the
 `github-pages` environment can be reviewed explicitly. Configure the repository's
 Pages source as **GitHub Actions** before the first deployment. See the complete
-[`examples/godot-gdscript-ci.yml`](examples/godot-gdscript-ci.yml) workflow.
+[`examples/godot-ci.yml`](examples/godot-ci.yml) workflow.
 If `pages-artifact-name` is customized, pass the same value as `artifact_name`
 to `actions/deploy-pages`.
 
@@ -156,7 +211,7 @@ a success status page so a previous failure is not presented as current.
 > Screenshots can contain rendered secrets or personal information. Review the
 > captured content before enabling Pages, especially for public repositories.
 
-## Addon Linking
+## Godot Addon Linking
 
 Git submodules work at repository granularity, so they cannot directly link only
 the subdirectory
@@ -168,7 +223,7 @@ directory into the consumer Godot project. Legacy `godot-plugin-*` releases are
 supported as a fallback. The release asset already includes the built Windows
 GDExtension DLLs, so the consumer workflow does not build the addon from source.
 
-## Consumer Repository Requirements
+## Godot Consumer Repository Requirements
 
 - A Godot GDScript project
 - Game-side code that starts the Gua bridge through the Gua addon
@@ -193,3 +248,17 @@ Example test project:
   </PropertyGroup>
 </Project>
 ```
+
+## v2 migration
+
+v2 removes the root Godot action so that the repository can expose both engine
+workflows without implying that Godot is the default engine. Update:
+
+```diff
+-- uses: link1345/gua-tester@v1.3
++- uses: link1345/gua-tester/godot@v2
+```
+
+The Godot component action paths remain `setup-godot` and
+`link-gua-gdscript-addon`. `visual-report` remains engine-neutral. The default
+Godot TRX file changed from `godot-gdscript.trx` to `godot.trx`.
