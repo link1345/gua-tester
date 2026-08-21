@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@v1
+        uses: link1345/gua-tester@v1.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -52,8 +52,8 @@ jobs:
           # gua-plugin-tag: godot-plugin-f448370cf009
 ```
 
-`uses: link1345/gua-tester@v1` assumes this actions repository is published and
-tagged as `v1`. Change the owner/repository name if you publish it elsewhere.
+`uses: link1345/gua-tester@v1.2` assumes this actions repository is published and
+tagged as `v1.2`. Change the owner/repository name if you publish it elsewhere.
 
 ## Root Action Inputs
 
