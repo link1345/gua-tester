@@ -2,17 +2,17 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgQIA6i7mWQAAAABJRU5ErkJggg==", "base64");
 
-function report(outcome: "success" | "failure" | "cancelled" = "failure") {
+function report(outcome: "success" | "failure" | "cancelled" = "failure", includeComparisons = outcome !== "success") {
   return {
     schemaVersion: 1,
     outcome,
     generatedAt: "2026-08-21T12:00:00Z",
     run: { repository: "link1345/example", id: "123", number: "9", commit: "0123456789abcdef" },
-    comparisons: outcome === "success" ? [] : [
+    comparisons: includeComparisons ? [
       { id: "001", name: "Title <script>window.__pwned=true</script>", variant: "windows", reason: "pixel_difference", width: 960, height: 540, metrics: { comparedPixels: 518400, differentPixels: 120, differentPixelRatio: 120 / 518400, pixelThreshold: 0.01, maxDifferentPixelRatio: 0 }, images: { expected: "comparisons/001/expected.png", actual: "comparisons/001/actual.png", diff: "comparisons/001/diff.png" } },
       { id: "002", name: "Missing baseline", variant: "linux", reason: "baseline_missing", width: 800, height: 450, metrics: { comparedPixels: 0, differentPixels: 0, differentPixelRatio: 0, pixelThreshold: 0, maxDifferentPixelRatio: 0 }, images: { expected: null, actual: "comparisons/002/actual.png", diff: null } },
       { id: "003", name: "Wrong size", variant: "mobile", reason: "dimension_mismatch", width: 640, height: 360, expectedWidth: 800, expectedHeight: 450, metrics: { comparedPixels: 0, differentPixels: 0, differentPixelRatio: 0, pixelThreshold: 0, maxDifferentPixelRatio: 0 }, images: { expected: "comparisons/003/expected.png", actual: "comparisons/003/actual.png", diff: null } },
-    ],
+    ] : [],
   };
 }
 
@@ -54,6 +54,15 @@ test("renders the successful state without comparison navigation", async ({ page
   await page.goto("./");
   await expect(page.getByRole("heading", { name: "No visual failures" })).toBeVisible();
   await expect(page.locator("#report-layout")).toBeHidden();
+});
+
+test("renders comparisons without an error state for a successful visual review", async ({ page }) => {
+  await mock(page, report("success", true));
+  await page.goto("./");
+  await expect(page.locator("#status")).toHaveText("Success");
+  await expect(page.locator("#status")).toHaveClass(/success/);
+  await expect(page.getByRole("heading", { name: "Title <script>window.__pwned=true</script>" })).toBeVisible();
+  await expect(page.locator("#load-error")).toBeHidden();
 });
 
 test("stacks image panels on a narrow viewport", async ({ page }) => {

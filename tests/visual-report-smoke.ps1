@@ -60,6 +60,13 @@ try {
     Assert-Equal @($success.comparisons).Count 0 "A success report must not publish stale comparisons."
     if (Test-Path -LiteralPath (Join-Path $successOutput "comparisons")) { throw "A success report must not copy comparison images." }
 
+    $reviewOutput = Join-Path $testRoot "review-site"
+    & $scriptPath -ArtifactPath $artifactRoot -TestOutcome success -IncludeComparisonsOnSuccess true -OutputPath $reviewOutput -AllowedOutputRoot $testRoot -ViewerTemplatePath $viewerPath
+    $review = Get-Content -LiteralPath (Join-Path $reviewOutput "report.json") -Raw | ConvertFrom-Json
+    Assert-Equal $review.outcome "success" "A non-blocking visual review must preserve its success outcome."
+    Assert-Equal @($review.comparisons).Count 2 "A non-blocking visual review must include comparison artifacts."
+    if (-not (Test-Path -LiteralPath (Join-Path $reviewOutput "comparisons/001/diff.png") -PathType Leaf)) { throw "A non-blocking visual review must copy comparison images." }
+
     $emptyOutput = Join-Path $testRoot "empty-site"
     & $scriptPath -ArtifactPath (Join-Path $testRoot "missing") -TestOutcome failure -OutputPath $emptyOutput -AllowedOutputRoot $testRoot -ViewerTemplatePath $viewerPath
     $empty = Get-Content -LiteralPath (Join-Path $emptyOutput "report.json") -Raw | ConvertFrom-Json
@@ -73,7 +80,7 @@ try {
     if (-not $unsafeRejected) { throw "Expected the builder to reject replacing its allowed output root." }
 
     $action = Get-Content -LiteralPath (Join-Path $PSScriptRoot "../visual-report/action.yml") -Raw
-    foreach ($expected in @("upload-target:", "inputs.upload-target == 'pages'", "inputs.upload-target == 'workflow'", "actions/upload-pages-artifact@v4", "actions/upload-artifact@v4", "comparison-count:", "artifact-id:")) {
+    foreach ($expected in @("include-comparisons-on-success:", "upload-target:", "inputs.upload-target == 'pages'", "inputs.upload-target == 'workflow'", "actions/upload-pages-artifact@v4", "actions/upload-artifact@v4", "comparison-count:", "artifact-id:")) {
         if (-not $action.Contains($expected)) { throw "Action metadata is missing '$expected'." }
     }
 }

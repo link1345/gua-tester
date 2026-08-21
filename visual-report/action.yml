@@ -9,6 +9,10 @@ inputs:
   test-outcome:
     description: Outcome of the Gua test step. Must be success, failure, or cancelled.
     required: true
+  include-comparisons-on-success:
+    description: Include comparison artifacts even when test-outcome is success. Useful for non-blocking visual review workflows.
+    required: false
+    default: "false"
   upload-target:
     description: Upload as a GitHub Pages artifact (pages) or a regular Actions artifact (workflow).
     required: false
@@ -53,6 +57,7 @@ runs:
         GUA_VISUAL_ACTION_PATH: ${{ github.action_path }}
         GUA_VISUAL_ARTIFACT_PATH: ${{ inputs.artifact-path }}
         GUA_VISUAL_TEST_OUTCOME: ${{ inputs.test-outcome }}
+        GUA_VISUAL_INCLUDE_COMPARISONS_ON_SUCCESS: ${{ inputs.include-comparisons-on-success }}
         GUA_VISUAL_SITE_PATH: ${{ runner.temp }}/gua-visual-report-${{ github.run_id }}-${{ github.run_attempt }}
         GUA_VISUAL_REPOSITORY: ${{ github.repository }}
         GUA_VISUAL_RUN_ID: ${{ github.run_id }}
@@ -62,6 +67,7 @@ runs:
         & "$env:GUA_VISUAL_ACTION_PATH/build-report.ps1" `
           -ArtifactPath $env:GUA_VISUAL_ARTIFACT_PATH `
           -TestOutcome $env:GUA_VISUAL_TEST_OUTCOME `
+          -IncludeComparisonsOnSuccess $env:GUA_VISUAL_INCLUDE_COMPARISONS_ON_SUCCESS `
           -OutputPath $env:GUA_VISUAL_SITE_PATH `
           -AllowedOutputRoot $env:RUNNER_TEMP `
           -ViewerTemplatePath "$env:GUA_VISUAL_ACTION_PATH/viewer" `

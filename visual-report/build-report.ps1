@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory = $true)] [string]$ArtifactPath,
     [Parameter(Mandatory = $true)] [ValidateSet("success", "failure", "cancelled")] [string]$TestOutcome,
+    [ValidateSet("true", "false")] [string]$IncludeComparisonsOnSuccess = "false",
     [Parameter(Mandatory = $true)] [string]$OutputPath,
     [Parameter(Mandatory = $true)] [string]$AllowedOutputRoot,
     [Parameter(Mandatory = $true)] [string]$ViewerTemplatePath,
@@ -47,7 +48,8 @@ Get-ChildItem -LiteralPath $viewerFullPath -Force | ForEach-Object {
 }
 
 $comparisons = [System.Collections.Generic.List[object]]::new()
-if ($TestOutcome -ne "success" -and (Test-Path -LiteralPath $artifactFullPath -PathType Container)) {
+$shouldIncludeComparisons = $TestOutcome -ne "success" -or $IncludeComparisonsOnSuccess -eq "true"
+if ($shouldIncludeComparisons -and (Test-Path -LiteralPath $artifactFullPath -PathType Container)) {
     $metadataFiles = @(Get-ChildItem -LiteralPath $artifactFullPath -Filter "comparison.json" -File -Recurse | Sort-Object FullName)
     foreach ($metadataFile in $metadataFiles) {
         try {
