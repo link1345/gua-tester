@@ -124,12 +124,14 @@ jobs:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
+      artifact-key: game
       unity-version: auto
       gua-tag: gua-v0.15.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
 ```
 
 Professionalライセンスでは`UNITY_LICENSE`の代わりに`UNITY_SERIAL`を渡せます。
@@ -137,16 +139,20 @@ fork PRにはActions secretsが渡らないため、呼び出し側で未信頼f
 skipしてください。Unity credentialsを渡して未信頼コードを実行する
 `pull_request_target`は使用しません。
 
-必須inputは`project-path`、`scene-path`、`test-project`です。任意inputは
+必須inputは`project-path`、`scene-path`、`test-project`と、呼び出しごとに一意な
+`artifact-key`です。任意inputは
 `unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
 `dotnet-version`（`10.0.x`）、`configuration`（`Release`）、`test-logger`
 （`trx;LogFileName=unity.trx`）、`artifact-path`（`artifacts/gua`）です。
 `checkout-repository`と`checkout-ref`は別repoのfixtureを使う高度なoverrideです。
+同じworkflow runから複数回呼び出す場合は、matrix値など呼び出し元で一意になる値を
+`artifact-key`へ指定してください。
 
 workflowは配布済み`com.link1345.gua-*.tgz`をembedded UPM packageとして配置し、
 rendered Windows x64 Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
 `GUA_UNITY_ARTIFACT_PLAYER`を設定し、Unity build log、Player、TRX、Gua診断・
-Visual artifactを保存します。対象はUnity 6000.0以降です。IL2CPP、Windows以外の
+Visual artifactを保存します。Player起動前にWindows test runnerの画面解像度を
+1920x1080へ固定します。対象はUnity 6000.0以降です。IL2CPP、Windows以外の
 Player、Editor Play Mode CI、IMGUI、EditorWindow自動化はv2の対象外です。
 
 `gua-tag`で選ぶUPM packageと、テストprojectが参照する`Gua.Testing.Unity`の

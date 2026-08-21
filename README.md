@@ -126,12 +126,14 @@ jobs:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
+      artifact-key: game
       unity-version: auto
       gua-tag: gua-v0.15.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
 ```
 
 Professional licenses can pass `UNITY_SERIAL` instead of `UNITY_LICENSE`.
@@ -139,18 +141,22 @@ Fork pull requests do not receive Actions secrets, so the calling workflow must
 skip the Unity job for untrusted forks. Do not use `pull_request_target` to run
 untrusted game code with Unity credentials.
 
-Required inputs are `project-path`, `scene-path`, and `test-project`. Optional
+Required inputs are `project-path`, `scene-path`, `test-project`, and a unique
+`artifact-key` for each reusable workflow invocation. Optional
 inputs are `unity-version` (`auto`), `gua-repository` (`link1345/gua`),
 `gua-tag`, `dotnet-version` (`10.0.x`), `configuration` (`Release`),
 `test-logger` (`trx;LogFileName=unity.trx`), and `artifact-path`
 (`artifacts/gua`). `checkout-repository` and `checkout-ref` are advanced
 overrides used when the project and tests come from another repository.
+Use a matrix value or another stable caller-specific value for `artifact-key`
+when the reusable workflow is invoked more than once in the same workflow run.
 
 The workflow installs the released `com.link1345.gua-*.tgz` as an embedded UPM
 package, builds a rendered Windows x64 Mono Player, and sets both
 `GUA_UNITY_PLAYER` and `GUA_UNITY_ARTIFACT_PLAYER` for `dotnet test`. Unity
 build logs, the Player, TRX results, and Gua diagnostic/visual artifacts are
-retained as workflow artifacts. Unity 6000.0+ is required; IL2CPP, non-Windows
+retained as workflow artifacts. The Windows test runner display is fixed at
+1920x1080 before launching the Player. Unity 6000.0+ is required; IL2CPP, non-Windows
 Players, Editor Play Mode CI, IMGUI, and EditorWindow automation are outside the
 v2 workflow scope.
 

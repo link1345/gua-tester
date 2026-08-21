@@ -15,6 +15,10 @@ on:
         description: Path to the external .NET test project that uses Gua.Testing.Unity.
         required: true
         type: string
+      artifact-key:
+        description: Unique artifact key for this reusable workflow invocation (for example a matrix value).
+        required: true
+        type: string
       unity-version:
         description: Unity version or auto to read ProjectSettings/ProjectVersion.txt.
         required: false
@@ -78,17 +82,32 @@ jobs:
     name: Build Unity Windows Player
     runs-on: ubuntu-latest
     steps:
-      - name: Check out consumer repository
+      - name: Check out caller repository
+        if: inputs.checkout-repository == ''
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.checkout-repository || github.repository }}
           ref: ${{ inputs.checkout-ref || github.sha }}
 
+      - name: Check out overridden repository at requested ref
+        if: inputs.checkout-repository != '' && inputs.checkout-ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+          ref: ${{ inputs.checkout-ref }}
+
+      - name: Check out overridden repository default branch
+        if: inputs.checkout-repository != '' && inputs.checkout-ref == ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+
       - name: Validate Unity inputs and credentials
+        id: build-paths
         shell: pwsh
         env:
           PROJECT_PATH: ${{ inputs.project-path }}
           SCENE_PATH: ${{ inputs.scene-path }}
+          ARTIFACT_KEY: ${{ inputs.artifact-key }}
           UNITY_VERSION: ${{ inputs.unity-version }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -101,6 +120,9 @@ jobs:
           }
           if ([string]::IsNullOrWhiteSpace($env:UNITY_LICENSE) -and [string]::IsNullOrWhiteSpace($env:UNITY_SERIAL)) {
             throw "Unity CI requires UNITY_LICENSE for Personal activation or UNITY_SERIAL for Professional activation."
+          }
+          if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+            throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
           }
 
           $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
@@ -129,6 +151,7 @@ jobs:
           if ($version -notmatch '^(?<major>\d+)\.' -or [int]$Matches.major -lt 6000) {
             throw "Gua Unity CI supports Unity 6000.0 or newer; resolved version was '$version'."
           }
+          "project-logs=$(Join-Path $project 'Logs')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Install released Gua Unity package
         shell: pwsh
@@ -222,7 +245,10 @@ jobs:
           projectPath: ${{ inputs.project-path }}
           targetPlatform: StandaloneWindows64
           buildMethod: Gua.Unity.Editor.GuaUnityEditorCommands.BuildPlayer
-          customParameters: -guaScene ${{ inputs.scene-path }} -guaOutput /github/workspace/artifacts/unity-player/GuaPlayer.exe -logFile /github/workspace/artifacts/unity-logs/unity-build.log
+          customParameters: >-
+            -guaScene "${{ inputs.scene-path }}"
+            -guaOutput /github/workspace/artifacts/unity-player/GuaPlayer.exe
+            -logFile /github/workspace/artifacts/unity-logs/unity-build.log
           allowDirtyBuild: true
 
       - name: Verify Unity Player artifact
@@ -240,16 +266,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gua-unity-build-${{ github.run_id }}-${{ github.run_attempt }}
+          name: gua-unity-build-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
           path: |
             artifacts/unity-logs
-            ${{ inputs.project-path }}/Logs
+            ${{ steps.build-paths.outputs.project-logs }}
           if-no-files-found: warn
 
       - name: Upload Unity Player
         uses: actions/upload-artifact@v4
         with:
-          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}
+          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
           path: artifacts/unity-player
           if-no-files-found: error
 
@@ -258,21 +284,49 @@ jobs:
     needs: build-player
     runs-on: windows-latest
     steps:
-      - name: Check out consumer repository
+      - name: Check out caller repository
+        if: inputs.checkout-repository == ''
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.checkout-repository || github.repository }}
           ref: ${{ inputs.checkout-ref || github.sha }}
+
+      - name: Check out overridden repository at requested ref
+        if: inputs.checkout-repository != '' && inputs.checkout-ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+          ref: ${{ inputs.checkout-ref }}
+
+      - name: Check out overridden repository default branch
+        if: inputs.checkout-repository != '' && inputs.checkout-ref == ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
+      - name: Set deterministic Windows display resolution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($null -eq (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue)) {
+            throw "Set-DisplayResolution is unavailable on this Windows runner image."
+          }
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Add-Type -AssemblyName System.Windows.Forms
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          if ($bounds.Width -ne 1920 -or $bounds.Height -ne 1080) {
+            throw "Windows display resolution is $($bounds.Width)x$($bounds.Height); expected 1920x1080."
+          }
+          Write-Host "Windows display resolution fixed at $($bounds.Width)x$($bounds.Height)."
+
       - name: Download Unity Player
         uses: actions/download-artifact@v4
         with:
-          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}
+          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
           path: artifacts/unity-player
 
       - name: Validate test paths
@@ -281,11 +335,15 @@ jobs:
         env:
           TEST_PROJECT: ${{ inputs.test-project }}
           ARTIFACT_PATH: ${{ inputs.artifact-path }}
+          ARTIFACT_KEY: ${{ inputs.artifact-key }}
         run: |
           $ErrorActionPreference = "Stop"
           $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
           if ([IO.Path]::IsPathRooted($env:TEST_PROJECT) -or [IO.Path]::IsPathRooted($env:ARTIFACT_PATH)) {
             throw "test-project and artifact-path must be relative to the checked-out repository."
+          }
+          if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+            throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
           }
           $testProject = [IO.Path]::GetFullPath((Join-Path $workspace $env:TEST_PROJECT))
           $artifactPath = [IO.Path]::GetFullPath((Join-Path $workspace $env:ARTIFACT_PATH))
@@ -316,12 +374,23 @@ jobs:
           GUA_ARTIFACT_DIR: ${{ steps.paths.outputs.artifact-path }}
         run: dotnet test "${{ steps.paths.outputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --results-directory artifacts/test-results --logger "${{ inputs.test-logger }}"
 
+      - name: Collect Unity Player logs
+        if: always() && steps.paths.outputs.artifact-path != ''
+        shell: pwsh
+        env:
+          ARTIFACT_PATH: ${{ steps.paths.outputs.artifact-path }}
+        run: |
+          $destination = Join-Path $env:ARTIFACT_PATH "unity-player-logs"
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath()) -Filter "gua-unity-player-*.log" -File -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $destination
+
       - name: Upload Unity test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gua-unity-test-${{ github.run_id }}-${{ github.run_attempt }}
+          name: gua-unity-test-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
           path: |
             artifacts/test-results
-            ${{ inputs.artifact-path }}
+            ${{ steps.paths.outputs.artifact-path }}
           if-no-files-found: warn
