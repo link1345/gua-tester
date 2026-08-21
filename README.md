@@ -49,7 +49,7 @@ jobs:
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest godot-plugin-* release.
-          # gua-plugin-tag: godot-plugin-f448370cf009
+          # gua-plugin-tag: gua-v0.15.0
 ```
 
 `uses: link1345/gua-tester@v1.2` assumes this actions repository is published and
