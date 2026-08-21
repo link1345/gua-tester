@@ -193,6 +193,7 @@ The action accepts:
 
 - `artifact-path`: Visual artifact directory. Default: `artifacts/gua`
 - `test-outcome`: Required test step outcome: `success`, `failure`, or `cancelled`
+- `include-comparisons-on-success`: Include comparison artifacts while keeping a successful report status. Default: `false`
 - `upload-target`: `pages` or `workflow`. Default: `pages`
 - `pages-artifact-name`: Pages artifact name. Default: `github-pages`
 - `workflow-artifact-name`: Workflow artifact name. Default: `gua-visual-report`
