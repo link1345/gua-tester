@@ -7,7 +7,7 @@ export default defineConfig({
     channel: "chromium",
   },
   webServer: {
-    command: "bun tests/server.mjs",
+    command: `"${process.execPath}" tests/server.mjs`,
     url: "http://127.0.0.1:4323/sample-repo/",
     reuseExistingServer: false,
   },

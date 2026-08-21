@@ -46,8 +46,8 @@ Assert-True (!$testUpload.Contains('${{ inputs.artifact-path }}')) "Unity artifa
 
 foreach ($readme in @("README.md", "README.ja.md")) {
     $content = Get-Content -LiteralPath (Join-Path $root $readme) -Raw
-    Assert-True ($content.Contains("link1345/gua-tester/godot@v2")) "$readme does not document the v2 Godot action."
-    Assert-True ($content.Contains("link1345/gua-tester/.github/workflows/unity.yml@v2")) "$readme does not document the Unity reusable workflow."
+    Assert-True ($content.Contains("link1345/gua-tester/godot@v2.2")) "$readme does not document the v2.2 Godot action."
+    Assert-True ($content.Contains("link1345/gua-tester/.github/workflows/unity.yml@v2.2")) "$readme does not document the v2.2 Unity reusable workflow."
     Assert-True ($content.Contains('artifact-key: game')) "$readme does not document the required artifact-key."
     Assert-True ($content.Contains('UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}')) "$readme does not map UNITY_SERIAL."
 }

@@ -20,18 +20,18 @@ jobs:
 
       - name: Run Godot Gua tests
         id: gua-tests
-        uses: link1345/gua-tester/godot@v2
+        uses: link1345/gua-tester/godot@v2.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v0.15.0
+          # gua-plugin-tag: gua-v1.18.0
 
       - name: Upload pull-request visual failures
         if: failure() && github.event_name == 'pull_request'
-        uses: link1345/gua-tester/visual-report@v2
+        uses: link1345/gua-tester/visual-report@v2.2
         with:
           artifact-path: artifacts/gua
           test-outcome: ${{ steps.gua-tests.outcome }}
@@ -41,7 +41,7 @@ jobs:
       - name: Prepare latest main visual report
         id: pages-report
         if: always() && github.event_name != 'pull_request'
-        uses: link1345/gua-tester/visual-report@v2
+        uses: link1345/gua-tester/visual-report@v2.2
         with:
           artifact-path: artifacts/gua
           test-outcome: ${{ steps.gua-tests.outcome }}

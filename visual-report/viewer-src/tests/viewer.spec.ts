@@ -12,6 +12,7 @@ function report(outcome: "success" | "failure" | "cancelled" = "failure", includ
       { id: "001", name: "Title <script>window.__pwned=true</script>", variant: "windows", reason: "pixel_difference", width: 960, height: 540, metrics: { comparedPixels: 518400, differentPixels: 120, differentPixelRatio: 120 / 518400, pixelThreshold: 0.01, maxDifferentPixelRatio: 0 }, images: { expected: "comparisons/001/expected.png", actual: "comparisons/001/actual.png", diff: "comparisons/001/diff.png" } },
       { id: "002", name: "Missing baseline", variant: "linux", reason: "baseline_missing", width: 800, height: 450, metrics: { comparedPixels: 0, differentPixels: 0, differentPixelRatio: 0, pixelThreshold: 0, maxDifferentPixelRatio: 0 }, images: { expected: null, actual: "comparisons/002/actual.png", diff: null } },
       { id: "003", name: "Wrong size", variant: "mobile", reason: "dimension_mismatch", width: 640, height: 360, expectedWidth: 800, expectedHeight: 450, metrics: { comparedPixels: 0, differentPixels: 0, differentPixelRatio: 0, pixelThreshold: 0, maxDifferentPixelRatio: 0 }, images: { expected: "comparisons/003/expected.png", actual: "comparisons/003/actual.png", diff: null } },
+      { id: "004", name: "Current title screen", variant: "windows", reason: "matched", width: 960, height: 540, metrics: { comparedPixels: 518400, differentPixels: 0, differentPixelRatio: 0, pixelThreshold: 0.01, maxDifferentPixelRatio: 0 }, images: { expected: null, actual: "comparisons/004/actual.png", diff: null } },
     ] : [],
   };
 }
@@ -46,6 +47,19 @@ test("disables unavailable modes for missing baselines and dimension mismatches"
   await expect(page.getByText("Expected screenshot is unavailable.")).toBeVisible();
   await page.getByRole("link", { name: /Wrong size/ }).click();
   await expect(page.getByText("Diff is unavailable because dimensions do not match.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Comparison slider" })).toBeDisabled();
+});
+
+test("shows the current screen when a comparison has no difference", async ({ page }) => {
+  await mock(page);
+  await page.goto("./#comparison-004");
+  await expect(page.getByRole("heading", { name: "Current title screen" })).toBeVisible();
+  await expect(page.locator("#detail-reason")).toHaveText("Comparison passed");
+  await expect(page.getByText("Current screen", { exact: true })).toBeVisible();
+  await expect(page.locator("#actual-image")).toBeVisible();
+  await expect(page.getByText("Before / Expected", { exact: true })).toBeHidden();
+  await expect(page.getByText("Diff", { exact: true })).toBeHidden();
+  await expect(page.locator("#mode-note")).toHaveText("The visual comparison passed. The current screen is shown below.");
   await expect(page.getByRole("button", { name: "Comparison slider" })).toBeDisabled();
 });
 

@@ -44,17 +44,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v2
+        uses: link1345/gua-tester/godot@v2.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v0.15.0
+          # gua-plugin-tag: gua-v1.18.0
 ```
 
-本番workflowは`@v2`へ固定してください。v2ではroot Actionを削除しています。
+本番workflowは`@v2.2`へ固定してください。v2ではroot Actionを削除しています。
 移行方法は[v2への移行](#v2への移行)を参照してください。
 
 ## Godot Action inputs
@@ -68,7 +68,7 @@ jobs:
 - `godot-executable-suffix`: 既定値 `win64.exe`
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: `gua-v0.15.0` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.18.0` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-plugin-*.zip`
@@ -82,7 +82,7 @@ jobs:
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v2
+- uses: link1345/gua-tester/setup-godot@v2.2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -93,11 +93,11 @@ jobs:
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v2
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v2.2
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v0.15.0
+    # gua-plugin-tag: gua-v1.18.0
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -119,14 +119,14 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v2
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v2.2
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
       unity-version: auto
-      gua-tag: gua-v0.15.0
+      gua-tag: gua-v1.18.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -160,7 +160,9 @@ Player、Editor Play Mode CI、IMGUI、EditorWindow自動化はv2の対象外で
 
 ## Visual report
 
-`Gua.Testing.Visual` は比較失敗ごとに `comparison.json` と利用可能なPNGを出力します。
+`Gua.Testing.Visual` は比較ごとに `comparison.json` と利用可能なPNGを出力します。
+比較成功時にも現在画面の `actual.png` が含まれるため、差分がないレポートでも
+現在の画面を表示できます。
 `visual-report` action はrawデータを公開用 `report.json` へ変換し、同梱済みの
 Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow artifactとして
 アップロードします。利用側CIでAstro、Node.js、npm依存をインストールする必要はありません。
@@ -168,7 +170,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v2
+  uses: link1345/gua-tester/godot@v2.2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -176,7 +178,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v2
+  uses: link1345/gua-tester/visual-report@v2.2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -187,6 +189,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 
 - `artifact-path`: Visual artifact directory。既定値は `artifacts/gua`
 - `test-outcome`: 必須。テストstepの結果で、`success`、`failure`、`cancelled` のいずれか
+- `include-comparisons-on-success`: 成功レポートにも失敗した比較artifactを含めます。一致した現在画面は常に含まれます。既定値は `false`
 - `upload-target`: `pages` または `workflow`。既定値は `pages`
 - `pages-artifact-name`: Pages artifact名。既定値は `github-pages`
 - `workflow-artifact-name`: 通常artifact名。既定値は `gua-visual-report`
@@ -204,7 +207,8 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 `upload-target: workflow` を使うと、Viewerと正規化済みreportを含む通常artifactを
 保存できます。Viewerは `report.json` を読み込むため、ダウンロード後は `file://` で
 直接開かず、展開先を `python -m http.server` などでHTTP配信してください。
-mainが成功した場合は成功状態ページを公開し、以前の失敗を現在の結果に見せません。
+mainが成功した場合は一致した現在画面を公開し、`include-comparisons-on-success` を
+有効にしない限り失敗artifactは除外するため、以前の失敗を現在の結果に見せません。
 
 > [!WARNING]
 > Screenshotには、画面へ描画された秘密情報や個人情報が含まれる可能性があります。
@@ -233,7 +237,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="0.5.0-preview.3" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.18.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
@@ -254,7 +258,7 @@ v2では、Godotを既定engineに見せないためroot Godot Actionを削除�
 
 ```diff
 -- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v2
++- uses: link1345/gua-tester/godot@v2.2
 ```
 
 Godotの構成Actionである`setup-godot`と`link-gua-gdscript-addon`、engine共通の

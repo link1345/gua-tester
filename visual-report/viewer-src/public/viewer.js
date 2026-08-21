@@ -7,6 +7,7 @@
   let report = null;
 
   const reasonLabels = {
+    matched: "Comparison passed",
     baseline_missing: "Baseline missing",
     dimension_mismatch: "Dimension mismatch",
     pixel_difference: "Pixel difference",
@@ -101,12 +102,19 @@
     text("actual-size", dimensions(comparison.width, comparison.height));
     text("diff-size", comparison.images?.diff ? dimensions(comparison.width, comparison.height) : "Unavailable");
 
+    const matched = comparison.reason === "matched";
+    document.querySelector('[data-panel="expected"]').hidden = matched;
+    document.querySelector('[data-panel="diff"]').hidden = matched;
+    document.querySelector('[data-panel="actual"] strong').textContent = matched ? "Current screen" : "After / Actual";
+    byId("triptych-panel").classList.toggle("current-screen", matched);
+
     const expected = setImage("expected", comparison.images?.expected, "Expected screenshot is unavailable.");
     const actual = setImage("actual", comparison.images?.actual, "Actual screenshot is unavailable.");
     setImage("diff", comparison.images?.diff, comparison.reason === "dimension_mismatch" ? "Diff is unavailable because dimensions do not match." : "Difference image is unavailable.");
 
-    const sliderAvailable = expected !== null && actual !== null && comparison.reason !== "dimension_mismatch";
+    const sliderAvailable = !matched && expected !== null && actual !== null && comparison.reason !== "dimension_mismatch";
     const note = sliderAvailable ? "Drag the slider or use the arrow keys to compare both images."
+      : matched ? "The visual comparison passed. The current screen is shown below."
       : comparison.reason === "dimension_mismatch" ? "The slider is unavailable because dimensions do not match."
       : "The slider is unavailable because the expected screenshot is missing.";
     byId("slider-tab").disabled = !sliderAvailable;

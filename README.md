@@ -44,17 +44,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v2
+        uses: link1345/gua-tester/godot@v2.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v0.15.0
+          # gua-plugin-tag: gua-v1.18.0
 ```
 
-Pin production workflows to `@v2`. The root action was removed in v2; see the
+Pin production workflows to `@v2.2`. The root action was removed in v2; see the
 [v2 migration](#v2-migration) section.
 
 ## Godot Action Inputs
@@ -69,7 +69,7 @@ Pin production workflows to `@v2`. The root action was removed in v2; see the
 - `godot-executable-suffix`: Default: `win64.exe`
 - `dotnet-version`: Default: `10.0.x`
 - `gua-repository`: Default: `link1345/gua`
-- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v0.15.0`. By
+- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.18.0`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-plugin-*.zip`
@@ -83,7 +83,7 @@ You can also use the smaller actions separately.
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v2
+- uses: link1345/gua-tester/setup-godot@v2.2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -94,11 +94,11 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v2
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v2.2
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
-    # gua-plugin-tag: gua-v0.15.0
+    # gua-plugin-tag: gua-v1.18.0
 ```
 
 This downloads the released `link1345/gua` Godot plugin asset and copies its
@@ -121,14 +121,14 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v2
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v2.2
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
       unity-version: auto
-      gua-tag: gua-v0.15.0
+      gua-tag: gua-v1.18.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -166,7 +166,9 @@ Keep the UPM release selected by `gua-tag` aligned with the
 ## Visual reports
 
 `Gua.Testing.Visual` writes `comparison.json` and the available PNG files for
-each failed comparison. The `visual-report` action converts that raw data into a
+each comparison. A successful comparison includes its current `actual.png`, so a
+report with no visual differences can still show the current screen. The
+`visual-report` action converts that raw data into a
 public `report.json`, combines it with the bundled Astro-built static viewer,
 and uploads either a Pages artifact or a regular workflow artifact. Consumers do
 not install Astro, Node.js, or npm dependencies.
@@ -174,7 +176,7 @@ not install Astro, Node.js, or npm dependencies.
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v2
+  uses: link1345/gua-tester/godot@v2.2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -182,7 +184,7 @@ not install Astro, Node.js, or npm dependencies.
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v2
+  uses: link1345/gua-tester/visual-report@v2.2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -193,7 +195,7 @@ The action accepts:
 
 - `artifact-path`: Visual artifact directory. Default: `artifacts/gua`
 - `test-outcome`: Required test step outcome: `success`, `failure`, or `cancelled`
-- `include-comparisons-on-success`: Include comparison artifacts while keeping a successful report status. Default: `false`
+- `include-comparisons-on-success`: Also include failed comparison artifacts while keeping a successful report status. Matched current screens are always included. Default: `false`
 - `upload-target`: `pages` or `workflow`. Default: `pages`
 - `pages-artifact-name`: Pages artifact name. Default: `github-pages`
 - `workflow-artifact-name`: Workflow artifact name. Default: `gua-visual-report`
@@ -212,7 +214,9 @@ requests use `upload-target: workflow`; the downloaded artifact already contains
 the viewer and normalized report. Because the viewer loads `report.json`, serve
 the extracted directory over local HTTP rather than opening `index.html` through
 `file://` (for example, `python -m http.server`). A successful main run publishes
-a success status page so a previous failure is not presented as current.
+matched current screens but filters out failure artifacts unless
+`include-comparisons-on-success` is enabled, so a previous failure is not
+presented as current.
 
 > [!WARNING]
 > Screenshots can contain rendered secrets or personal information. Review the
@@ -241,7 +245,7 @@ Example test project:
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="0.5.0-preview.3" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.18.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
@@ -263,7 +267,7 @@ workflows without implying that Godot is the default engine. Update:
 
 ```diff
 -- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v2
++- uses: link1345/gua-tester/godot@v2.2
 ```
 
 The Godot component action paths remain `setup-godot` and
