@@ -14,11 +14,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@v1
+        uses: link1345/gua-tester@main
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          # Optional. Leave unset to use the latest godot-plugin-* release.
-          # gua-plugin-tag: godot-plugin-f448370cf009
+          # Optional. Leave unset to use the latest stable gua-v* release.
+          # gua-plugin-tag: gua-v0.15.0

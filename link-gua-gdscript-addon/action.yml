@@ -7,7 +7,7 @@ inputs:
     required: false
     default: link1345/gua
   gua-plugin-tag:
-    description: Gua Godot plugin release tag. Leave empty to use the latest godot-plugin-* release.
+    description: Gua release tag. Leave empty to use the latest stable gua-v* release containing a matching addon asset.
     required: false
     default: ""
   gua-plugin-asset-pattern:
@@ -38,9 +38,28 @@ runs:
 
         if ([string]::IsNullOrWhiteSpace($tag)) {
           $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases" -Headers $headers
-          $release = $releases | Where-Object { $_.tag_name -like "godot-plugin-*" } | Select-Object -First 1
+          $release = $releases |
+            Where-Object {
+              -not $_.draft -and
+              -not $_.prerelease -and
+              $_.tag_name -like "gua-v*" -and
+              @($_.assets | Where-Object { $_.name -like $assetPattern }).Count -gt 0
+            } |
+            Select-Object -First 1
+
           if ($null -eq $release) {
-            throw "No godot-plugin-* release was found in ${repository}."
+            $release = $releases |
+              Where-Object {
+                -not $_.draft -and
+                -not $_.prerelease -and
+                $_.tag_name -like "godot-plugin-*" -and
+                @($_.assets | Where-Object { $_.name -like $assetPattern }).Count -gt 0
+              } |
+              Select-Object -First 1
+          }
+
+          if ($null -eq $release) {
+            throw "No stable gua-v* or legacy godot-plugin-* release containing an asset matching '${assetPattern}' was found in ${repository}."
           }
         } else {
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases/tags/${tag}" -Headers $headers

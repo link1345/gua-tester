@@ -12,7 +12,7 @@ Godot プロジェクトと .NET テストプロジェクトに対して、CI �
 ## できること
 
 - 任意の Godot Windows 版を公式 release からダウンロード
-- `link1345/gua` の最新 `godot-plugin-*` リリースを取得
+- 対象の Godot addon asset を含む `link1345/gua` の最新安定版 `gua-v*` リリースを取得
 - ビルド済み Windows DLL を含む `addons/gua` package を展開
 - 展開した addon を利用者の `game/addons/gua` へ配置
 - `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
@@ -42,18 +42,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester@v1
+        uses: link1345/gua-tester@main
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          # 省略時は最新の godot-plugin-* リリースを使います。
-          # gua-plugin-tag: godot-plugin-f448370cf009
+          # 省略時は最新安定版の gua-v* リリースを使います。
+          # gua-plugin-tag: gua-v0.15.0
 ```
 
-`uses: link1345/gua-tester@v1` は、この actions repo を公開して `v1` タグを
-切った後の指定です。別の owner/repo 名で公開する場合はそこを変えます。
+`uses: link1345/gua-tester@main` は現在公開中の action を使用します。
+安定版の `v1` タグが公開された後は `@v1` に固定できます。
 
 ## root action inputs
 
@@ -66,8 +66,9 @@ root の `action.yml` は all-in-one action です。
 - `godot-executable-suffix`: 既定値 `win64.exe`
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: 特定の `godot-plugin-*` リリースタグ。省略時は最新の
-  一致するリリースを使います。
+- `gua-plugin-tag`: `gua-v0.15.0` などの特定の Gua リリースタグ。省略時は
+  対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
+  `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-plugin-*.zip`
 - `configuration`: 既定値 `Release`
 - `test-logger`: 既定値 `trx;LogFileName=godot-gdscript.trx`
@@ -79,7 +80,7 @@ root の `action.yml` は all-in-one action です。
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v1
+- uses: link1345/gua-tester/setup-godot@main
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -90,11 +91,11 @@ root の `action.yml` は all-in-one action です。
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v1
+- uses: link1345/gua-tester/link-gua-gdscript-addon@main
   with:
     project-path: game
-    # 省略時は最新の godot-plugin-* リリースを使います。
-    # gua-plugin-tag: godot-plugin-f448370cf009
+    # 省略時は最新安定版の gua-v* リリースを使います。
+    # gua-plugin-tag: gua-v0.15.0
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -106,10 +107,11 @@ Git submodule はリポジトリ単位なので、
 `https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`
 のようなサブディレクトリだけを直接 submodule にはできません。
 
-そのため、この actions repo では `link1345/gua` の `godot-plugin-*` リリース
-asset をダウンロードし、リリース内の `addons/gua` だけを利用者の Godot project
-へコピーします。リリース asset にはビルド済み Windows GDExtension DLL が含まれる
-ので、利用者 workflow 側で addon をソースからビルドする必要はありません。
+そのため、この actions repo では `link1345/gua` の `gua-v*` リリースから対象の
+Godot addon asset をダウンロードし、リリース内の `addons/gua` だけを利用者の
+Godot project へコピーします。旧形式の `godot-plugin-*` リリースにもフォールバック
+します。リリース asset にはビルド済み Windows GDExtension DLL が含まれるので、
+利用者 workflow 側で addon をソースからビルドする必要はありません。
 
 ## 利用者 repo 側に必要なもの
 
