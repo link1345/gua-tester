@@ -10,7 +10,7 @@ inputs:
     description: Outcome of the Gua test step. Must be success, failure, or cancelled.
     required: true
   include-comparisons-on-success:
-    description: Include comparison artifacts even when test-outcome is success. Useful for non-blocking visual review workflows.
+    description: Include failed comparison artifacts when test-outcome is success. Matched current screens are always included.
     required: false
     default: "false"
   upload-target:

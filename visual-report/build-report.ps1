@@ -48,8 +48,7 @@ Get-ChildItem -LiteralPath $viewerFullPath -Force | ForEach-Object {
 }
 
 $comparisons = [System.Collections.Generic.List[object]]::new()
-$shouldIncludeComparisons = $TestOutcome -ne "success" -or $IncludeComparisonsOnSuccess -eq "true"
-if ($shouldIncludeComparisons -and (Test-Path -LiteralPath $artifactFullPath -PathType Container)) {
+if (Test-Path -LiteralPath $artifactFullPath -PathType Container) {
     $metadataFiles = @(Get-ChildItem -LiteralPath $artifactFullPath -Filter "comparison.json" -File -Recurse | Sort-Object FullName)
     foreach ($metadataFile in $metadataFiles) {
         try {
@@ -59,6 +58,10 @@ if ($shouldIncludeComparisons -and (Test-Path -LiteralPath $artifactFullPath -Pa
             Write-Warning "Skipping unreadable visual comparison metadata '$($metadataFile.FullName)': $($_.Exception.Message)"
             continue
         }
+
+        $matched = [bool](Get-MetadataValue $metadata "matched" $false)
+        $includeComparison = $TestOutcome -ne "success" -or $IncludeComparisonsOnSuccess -eq "true" -or $matched
+        if (-not $includeComparison) { continue }
 
         $number = $comparisons.Count + 1
         $id = "{0:D3}" -f $number

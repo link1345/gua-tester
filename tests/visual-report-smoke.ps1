@@ -60,11 +60,27 @@ try {
     Assert-Equal @($success.comparisons).Count 0 "A success report must not publish stale comparisons."
     if (Test-Path -LiteralPath (Join-Path $successOutput "comparisons")) { throw "A success report must not copy comparison images." }
 
+    Write-Fixture (Join-Path $artifactRoot "third") @{
+        schemaVersion = 1; name = "Current title screen"; variant = "windows"; reason = "matched"; matched = $true
+        width = 960; height = 540; comparedPixels = 518400; differentPixels = 0
+        differentPixelRatio = 0; pixelThreshold = 0.01; maxDifferentPixelRatio = 0
+        baselinePath = "C:\private\screenshots\title.png"
+    } @("actual")
+
+    $matchedOutput = Join-Path $testRoot "matched-site"
+    & $scriptPath -ArtifactPath $artifactRoot -TestOutcome success -OutputPath $matchedOutput -AllowedOutputRoot $testRoot -ViewerTemplatePath $viewerPath
+    $matched = Get-Content -LiteralPath (Join-Path $matchedOutput "report.json") -Raw | ConvertFrom-Json
+    Assert-Equal @($matched.comparisons).Count 1 "A success report must include matched current screens."
+    Assert-Equal $matched.comparisons[0].reason "matched" "The matched comparison reason was not preserved."
+    Assert-Equal $matched.comparisons[0].images.actual "comparisons/001/actual.png" "The current screen path was not normalized."
+    if (-not (Test-Path -LiteralPath (Join-Path $matchedOutput "comparisons/001/actual.png") -PathType Leaf)) { throw "A success report must copy its current screen." }
+    if (Test-Path -LiteralPath (Join-Path $matchedOutput "comparisons/002")) { throw "A success report must not copy stale failures by default." }
+
     $reviewOutput = Join-Path $testRoot "review-site"
     & $scriptPath -ArtifactPath $artifactRoot -TestOutcome success -IncludeComparisonsOnSuccess true -OutputPath $reviewOutput -AllowedOutputRoot $testRoot -ViewerTemplatePath $viewerPath
     $review = Get-Content -LiteralPath (Join-Path $reviewOutput "report.json") -Raw | ConvertFrom-Json
     Assert-Equal $review.outcome "success" "A non-blocking visual review must preserve its success outcome."
-    Assert-Equal @($review.comparisons).Count 2 "A non-blocking visual review must include comparison artifacts."
+    Assert-Equal @($review.comparisons).Count 3 "A non-blocking visual review must include comparison artifacts."
     if (-not (Test-Path -LiteralPath (Join-Path $reviewOutput "comparisons/001/diff.png") -PathType Leaf)) { throw "A non-blocking visual review must copy comparison images." }
 
     $emptyOutput = Join-Path $testRoot "empty-site"
