@@ -1,0 +1,396 @@
+name: Gua Unity Tests
+
+on:
+  workflow_call:
+    inputs:
+      project-path:
+        description: Path to the consumer Unity project.
+        required: true
+        type: string
+      scene-path:
+        description: Unity scene path relative to the project, beginning with Assets/.
+        required: true
+        type: string
+      test-project:
+        description: Path to the external .NET test project that uses Gua.Testing.Unity.
+        required: true
+        type: string
+      artifact-key:
+        description: Unique artifact key for this reusable workflow invocation (for example a matrix value).
+        required: true
+        type: string
+      unity-version:
+        description: Unity version or auto to read ProjectSettings/ProjectVersion.txt.
+        required: false
+        default: auto
+        type: string
+      gua-repository:
+        description: Repository containing Gua Unity UPM release assets.
+        required: false
+        default: link1345/gua
+        type: string
+      gua-tag:
+        description: Gua release tag. Empty selects the latest stable gua-v* release with a Unity UPM asset.
+        required: false
+        default: ""
+        type: string
+      dotnet-version:
+        description: .NET SDK used by the external test runner.
+        required: false
+        default: 10.0.x
+        type: string
+      configuration:
+        description: .NET test configuration.
+        required: false
+        default: Release
+        type: string
+      test-logger:
+        description: dotnet test logger argument.
+        required: false
+        default: trx;LogFileName=unity.trx
+        type: string
+      artifact-path:
+        description: Relative path where Gua diagnostics and visual results are collected.
+        required: false
+        default: artifacts/gua
+        type: string
+      checkout-repository:
+        description: Advanced override for the repository containing the Unity project and tests.
+        required: false
+        default: ""
+        type: string
+      checkout-ref:
+        description: Advanced override for the ref containing the Unity project and tests.
+        required: false
+        default: ""
+        type: string
+    secrets:
+      UNITY_EMAIL:
+        required: false
+      UNITY_PASSWORD:
+        required: false
+      UNITY_LICENSE:
+        required: false
+      UNITY_SERIAL:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-player:
+    name: Build Unity Windows Player
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out caller repository
+        if: inputs.checkout-repository == ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+
+      - name: Check out overridden repository at requested ref
+        if: inputs.checkout-repository != '' && inputs.checkout-ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+          ref: ${{ inputs.checkout-ref }}
+
+      - name: Check out overridden repository default branch
+        if: inputs.checkout-repository != '' && inputs.checkout-ref == ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+
+      - name: Validate Unity inputs and credentials
+        id: build-paths
+        shell: pwsh
+        env:
+          PROJECT_PATH: ${{ inputs.project-path }}
+          SCENE_PATH: ${{ inputs.scene-path }}
+          ARTIFACT_KEY: ${{ inputs.artifact-key }}
+          UNITY_VERSION: ${{ inputs.unity-version }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:UNITY_EMAIL) -or [string]::IsNullOrWhiteSpace($env:UNITY_PASSWORD)) {
+            throw "Unity CI requires UNITY_EMAIL and UNITY_PASSWORD."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:UNITY_LICENSE) -and [string]::IsNullOrWhiteSpace($env:UNITY_SERIAL)) {
+            throw "Unity CI requires UNITY_LICENSE for Personal activation or UNITY_SERIAL for Professional activation."
+          }
+          if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+            throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
+          }
+
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          if ([IO.Path]::IsPathRooted($env:PROJECT_PATH)) { throw "project-path must be relative to the checked-out repository." }
+          $project = [IO.Path]::GetFullPath((Join-Path $workspace $env:PROJECT_PATH))
+          $insideWorkspace = $project.Equals($workspace, [StringComparison]::OrdinalIgnoreCase) -or $project.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+          if (!$insideWorkspace -or !(Test-Path -LiteralPath $project -PathType Container)) {
+            throw "project-path must resolve to a Unity project inside the checked-out repository: '$($env:PROJECT_PATH)'."
+          }
+          if ($env:SCENE_PATH -notmatch '^Assets[/\\].+\.unity$' -or $env:SCENE_PATH.Contains('..') -or $env:SCENE_PATH.Contains('"') -or $env:SCENE_PATH.Contains("`n")) {
+            throw "scene-path must be a safe Assets/... .unity path."
+          }
+          $scene = Join-Path $project $env:SCENE_PATH
+          if (!(Test-Path -LiteralPath $scene -PathType Leaf)) {
+            throw "Unity scene was not found: '$scene'."
+          }
+
+          $version = $env:UNITY_VERSION
+          if ($version -eq "auto") {
+            $versionFile = Join-Path $project "ProjectSettings/ProjectVersion.txt"
+            if (!(Test-Path -LiteralPath $versionFile)) { throw "Unity ProjectVersion.txt was not found: '$versionFile'." }
+            $match = Select-String -LiteralPath $versionFile -Pattern '^m_EditorVersion:\s*(\S+)' | Select-Object -First 1
+            if ($null -eq $match) { throw "Could not read the Unity version from '$versionFile'." }
+            $version = $match.Matches[0].Groups[1].Value
+          }
+          if ($version -notmatch '^(?<major>\d+)\.' -or [int]$Matches.major -lt 6000) {
+            throw "Gua Unity CI supports Unity 6000.0 or newer; resolved version was '$version'."
+          }
+          "project-logs=$(Join-Path $project 'Logs')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Install released Gua Unity package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GUA_REPOSITORY: ${{ inputs.gua-repository }}
+          GUA_TAG: ${{ inputs.gua-tag }}
+          PROJECT_PATH: ${{ inputs.project-path }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $headers = @{ "User-Agent" = "gua-tester-unity" }
+          if (![string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) { $headers.Authorization = "Bearer $($env:GITHUB_TOKEN)" }
+          $assetPattern = "com.link1345.gua-*.tgz"
+
+          if ([string]::IsNullOrWhiteSpace($env:GUA_TAG)) {
+            $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/releases" -Headers $headers
+            $release = $releases |
+              Where-Object {
+                -not $_.draft -and -not $_.prerelease -and $_.tag_name -like "gua-v*" -and
+                @($_.assets | Where-Object { $_.name -like $assetPattern }).Count -gt 0
+              } |
+              Select-Object -First 1
+            if ($null -eq $release) {
+              throw "No stable gua-v* release containing '$assetPattern' was found in $($env:GUA_REPOSITORY)."
+            }
+          } else {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/releases/tags/$($env:GUA_TAG)" -Headers $headers
+          }
+
+          $assets = @($release.assets | Where-Object { $_.name -like $assetPattern })
+          if ($assets.Count -ne 1) {
+            throw "Expected exactly one '$assetPattern' asset in release '$($release.tag_name)', found $($assets.Count)."
+          }
+
+          $download = Join-Path $env:RUNNER_TEMP $assets[0].name
+          $extract = Join-Path $env:RUNNER_TEMP "gua-unity-package-$($release.tag_name)"
+          Invoke-WebRequest -Uri $assets[0].browser_download_url -OutFile $download -Headers $headers
+          New-Item -ItemType Directory -Force $extract | Out-Null
+          tar -xzf $download -C $extract
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract '$download'." }
+
+          $source = Join-Path $extract "package"
+          $project = (Resolve-Path -LiteralPath $env:PROJECT_PATH).Path
+          $packages = Join-Path $project "Packages"
+          $target = Join-Path $packages "com.link1345.gua"
+          $manifestPath = Join-Path $packages "manifest.json"
+          if (!(Test-Path -LiteralPath $manifestPath)) { throw "Unity package manifest was not found: '$manifestPath'." }
+          if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+          Copy-Item -LiteralPath $source -Destination $target -Recurse
+
+          $required = @(
+            "package.json",
+            "Editor/Gua.Unity.Editor.dll",
+            "Runtime/Plugins/Managed/Gua.Core.dll",
+            "Runtime/Plugins/Managed/Gua.Runtime.dll",
+            "Runtime/Plugins/Managed/Gua.Unity.dll",
+            "Runtime/Plugins/x86_64/gua.dll",
+            "Runtime/Plugins/x86_64/gua_runtime.dll"
+          )
+          $missing = $required | Where-Object { !(Test-Path -LiteralPath (Join-Path $target $_) -PathType Leaf) }
+          if ($missing.Count -gt 0) { throw "The released Unity package is missing: $($missing -join ', ')." }
+
+          $package = Get-Content -LiteralPath (Join-Path $target "package.json") -Raw | ConvertFrom-Json
+          if ($package.name -ne "com.link1345.gua" -or [string]::IsNullOrWhiteSpace($package.version)) {
+            throw "The released Unity package has invalid package metadata."
+          }
+          $expectedVersion = $release.tag_name -replace '^gua-v', ''
+          if ($release.tag_name -like "gua-v*" -and $package.version -ne $expectedVersion) {
+            throw "Unity package version '$($package.version)' does not match release '$($release.tag_name)'."
+          }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($null -eq $manifest.dependencies) { throw "The Unity package manifest has no dependencies object." }
+          $manifest.dependencies.PSObject.Properties.Remove("com.link1345.gua")
+          $manifest | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
+          Write-Host "Installed embedded Gua Unity package $($package.version) from $($release.tag_name)."
+
+      - name: Prepare Unity artifact directories
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force artifacts/unity-player, artifacts/unity-logs | Out-Null
+
+      - name: Build Unity Windows x64 Mono Player
+        id: unity-build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: ${{ inputs.unity-version }}
+          projectPath: ${{ inputs.project-path }}
+          targetPlatform: StandaloneWindows64
+          buildMethod: Gua.Unity.Editor.GuaUnityEditorCommands.BuildPlayer
+          customParameters: >-
+            -guaScene "${{ inputs.scene-path }}"
+            -guaOutput /github/workspace/artifacts/unity-player/GuaPlayer.exe
+            -logFile /github/workspace/artifacts/unity-logs/unity-build.log
+          allowDirtyBuild: true
+
+      - name: Verify Unity Player artifact
+        shell: pwsh
+        run: |
+          $required = @(
+            "artifacts/unity-player/GuaPlayer.exe",
+            "artifacts/unity-player/GuaPlayer_Data",
+            "artifacts/unity-player/UnityPlayer.dll"
+          )
+          $missing = $required | Where-Object { !(Test-Path -LiteralPath $_) }
+          if ($missing.Count -gt 0) { throw "Unity build did not produce the required Player files: $($missing -join ', ')." }
+
+      - name: Upload Unity build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gua-unity-build-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
+          path: |
+            artifacts/unity-logs
+            ${{ steps.build-paths.outputs.project-logs }}
+          if-no-files-found: warn
+
+      - name: Upload Unity Player
+        uses: actions/upload-artifact@v4
+        with:
+          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
+          path: artifacts/unity-player
+          if-no-files-found: error
+
+  test-player:
+    name: Test Unity Windows Player
+    needs: build-player
+    runs-on: windows-latest
+    steps:
+      - name: Check out caller repository
+        if: inputs.checkout-repository == ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+
+      - name: Check out overridden repository at requested ref
+        if: inputs.checkout-repository != '' && inputs.checkout-ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+          ref: ${{ inputs.checkout-ref }}
+
+      - name: Check out overridden repository default branch
+        if: inputs.checkout-repository != '' && inputs.checkout-ref == ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.checkout-repository }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Set deterministic Windows display resolution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($null -eq (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue)) {
+            throw "Set-DisplayResolution is unavailable on this Windows runner image."
+          }
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Add-Type -AssemblyName System.Windows.Forms
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          if ($bounds.Width -ne 1920 -or $bounds.Height -ne 1080) {
+            throw "Windows display resolution is $($bounds.Width)x$($bounds.Height); expected 1920x1080."
+          }
+          Write-Host "Windows display resolution fixed at $($bounds.Width)x$($bounds.Height)."
+
+      - name: Download Unity Player
+        uses: actions/download-artifact@v4
+        with:
+          name: gua-unity-player-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
+          path: artifacts/unity-player
+
+      - name: Validate test paths
+        id: paths
+        shell: pwsh
+        env:
+          TEST_PROJECT: ${{ inputs.test-project }}
+          ARTIFACT_PATH: ${{ inputs.artifact-path }}
+          ARTIFACT_KEY: ${{ inputs.artifact-key }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          if ([IO.Path]::IsPathRooted($env:TEST_PROJECT) -or [IO.Path]::IsPathRooted($env:ARTIFACT_PATH)) {
+            throw "test-project and artifact-path must be relative to the checked-out repository."
+          }
+          if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+            throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
+          }
+          $testProject = [IO.Path]::GetFullPath((Join-Path $workspace $env:TEST_PROJECT))
+          $artifactPath = [IO.Path]::GetFullPath((Join-Path $workspace $env:ARTIFACT_PATH))
+          foreach ($path in @($testProject, $artifactPath)) {
+            $insideWorkspace = $path.Equals($workspace, [StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+            if (!$insideWorkspace) {
+              throw "Unity test paths must remain inside the checked-out repository: '$path'."
+            }
+          }
+          if (!(Test-Path -LiteralPath $testProject -PathType Leaf)) { throw "Test project was not found: '$testProject'." }
+          $player = Get-ChildItem -LiteralPath (Join-Path $workspace "artifacts/unity-player") -Filter GuaPlayer.exe -Recurse -File | Select-Object -First 1
+          if ($null -eq $player) { throw "Downloaded Unity Player executable was not found." }
+          New-Item -ItemType Directory -Force $artifactPath, (Join-Path $workspace "artifacts/test-results") | Out-Null
+          "test-project=$testProject" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "artifact-path=$artifactPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "player=$($player.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Restore Unity tests
+        shell: pwsh
+        run: dotnet restore "${{ steps.paths.outputs.test-project }}"
+
+      - name: Run Unity tests
+        shell: pwsh
+        env:
+          GUA_UNITY_PLAYER: ${{ steps.paths.outputs.player }}
+          GUA_UNITY_ARTIFACT_PLAYER: ${{ steps.paths.outputs.player }}
+          GUA_ARTIFACT_PATH: ${{ steps.paths.outputs.artifact-path }}
+          GUA_ARTIFACT_DIR: ${{ steps.paths.outputs.artifact-path }}
+        run: dotnet test "${{ steps.paths.outputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --results-directory artifacts/test-results --logger "${{ inputs.test-logger }}"
+
+      - name: Collect Unity Player logs
+        if: always() && steps.paths.outputs.artifact-path != ''
+        shell: pwsh
+        env:
+          ARTIFACT_PATH: ${{ steps.paths.outputs.artifact-path }}
+        run: |
+          $destination = Join-Path $env:ARTIFACT_PATH "unity-player-logs"
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath()) -Filter "gua-unity-player-*.log" -File -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $destination
+
+      - name: Upload Unity test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gua-unity-test-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.artifact-key }}
+          path: |
+            artifacts/test-results
+            ${{ steps.paths.outputs.artifact-path }}
+          if-no-files-found: warn

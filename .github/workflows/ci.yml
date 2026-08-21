@@ -7,6 +7,14 @@ on:
       - main
 
 jobs:
+  action-contract-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test public action contracts
+        shell: pwsh
+        run: ./tests/action-contract-smoke.ps1
+
   visual-report-smoke:
     runs-on: windows-latest
     steps:
