@@ -44,17 +44,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v2.2
+        uses: link1345/gua-tester/godot@v3
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.18.0
+          # gua-plugin-tag: gua-v1.0.2
 ```
 
-本番workflowは`@v2.2`へ固定してください。v2ではroot Actionを削除しています。
+本番workflowは`@v3`へ固定してください。v2ではroot Actionを削除しています。
 移行方法は[v2への移行](#v2への移行)を参照してください。
 
 ## Godot Action inputs
@@ -68,7 +68,7 @@ jobs:
 - `godot-executable-suffix`: 既定値 `win64.exe`
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: `gua-v1.18.0` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.0.2` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
@@ -82,7 +82,7 @@ jobs:
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v2.2
+- uses: link1345/gua-tester/setup-godot@v3
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -93,11 +93,11 @@ jobs:
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v2.2
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v3
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.18.0
+    # gua-plugin-tag: gua-v1.0.2
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -119,14 +119,14 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v2.2
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v3
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
       unity-version: auto
-      gua-tag: gua-v1.18.0
+      gua-tag: gua-v1.0.2
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -170,7 +170,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v2.2
+  uses: link1345/gua-tester/godot@v3
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -178,7 +178,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v2.2
+  uses: link1345/gua-tester/visual-report@v3
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -258,7 +258,7 @@ v2では、Godotを既定engineに見せないためroot Godot Actionを削除�
 
 ```diff
 -- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v2.2
++- uses: link1345/gua-tester/godot@v3
 ```
 
 Godotの構成Actionである`setup-godot`と`link-gua-gdscript-addon`、engine共通の
