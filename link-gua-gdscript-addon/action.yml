@@ -13,7 +13,7 @@ inputs:
   gua-plugin-asset-pattern:
     description: Asset name wildcard used to select the addon zip from the release.
     required: false
-    default: gua-godot-plugin-*.zip
+    default: gua-godot-addon-*.zip
   project-path:
     description: Path to the consumer Godot project directory.
     required: false
@@ -34,7 +34,19 @@ runs:
         $repository = "${{ inputs.gua-repository }}"
         $tag = "${{ inputs.gua-plugin-tag }}"
         $assetPattern = "${{ inputs.gua-plugin-asset-pattern }}"
+        $assetPatterns = @($assetPattern)
+        if ($assetPattern -eq "gua-godot-addon-*.zip") {
+          $assetPatterns += "gua-godot-plugin-windows-debug-*.zip"
+        }
         $headers = @{ "User-Agent" = "gua-godot-actions" }
+
+        function Find-AddonAsset($release) {
+          foreach ($pattern in $assetPatterns) {
+            $match = $release.assets | Where-Object { $_.name -like $pattern } | Select-Object -First 1
+            if ($null -ne $match) { return $match }
+          }
+          return $null
+        }
 
         if ([string]::IsNullOrWhiteSpace($tag)) {
           $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases" -Headers $headers
@@ -43,7 +55,7 @@ runs:
               -not $_.draft -and
               -not $_.prerelease -and
               $_.tag_name -like "gua-v*" -and
-              @($_.assets | Where-Object { $_.name -like $assetPattern }).Count -gt 0
+              $null -ne (Find-AddonAsset $_)
             } |
             Select-Object -First 1
 
@@ -53,24 +65,25 @@ runs:
                 -not $_.draft -and
                 -not $_.prerelease -and
                 $_.tag_name -like "godot-plugin-*" -and
-                @($_.assets | Where-Object { $_.name -like $assetPattern }).Count -gt 0
+                $null -ne (Find-AddonAsset $_)
               } |
               Select-Object -First 1
           }
 
           if ($null -eq $release) {
-            throw "No stable gua-v* or legacy godot-plugin-* release containing an asset matching '${assetPattern}' was found in ${repository}."
+            throw "No stable gua-v* or legacy godot-plugin-* release containing a supported addon asset was found in ${repository}."
           }
         } else {
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases/tags/${tag}" -Headers $headers
         }
 
-        $asset = $release.assets | Where-Object { $_.name -like $assetPattern } | Select-Object -First 1
+        $asset = Find-AddonAsset $release
         if ($null -eq $asset) {
-          throw "No release asset matching '${assetPattern}' was found in release '$($release.tag_name)'."
+          $patternsText = $assetPatterns -join "', '"
+          throw "No release asset matching one of '${patternsText}' was found in release '$($release.tag_name)'."
         }
 
-        $downloadDir = Join-Path $env:RUNNER_TEMP "gua-godot-plugin-$($release.tag_name)"
+        $downloadDir = Join-Path $env:RUNNER_TEMP "gua-godot-addon-$($release.tag_name)"
         $archivePath = Join-Path $downloadDir $asset.name
         $extractDir = Join-Path $downloadDir "extract"
         New-Item -ItemType Directory -Force $downloadDir | Out-Null

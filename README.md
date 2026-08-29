@@ -72,7 +72,7 @@ Pin production workflows to `@v2.2`. The root action was removed in v2; see the
 - `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.18.0`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
-- `gua-plugin-asset-pattern`: Default: `gua-godot-plugin-*.zip`
+- `gua-plugin-asset-pattern`: Default: `gua-godot-addon-*.zip`. The default also accepts the legacy Windows addon name for older Gua tags.
 - `configuration`: Default: `Release`
 - `test-logger`: Default: `trx;LogFileName=godot.trx`
 
