@@ -12,6 +12,12 @@ Assert-True (Test-Path -LiteralPath $godotActionPath -PathType Leaf) "godot/acti
 $godotAction = Get-Content -LiteralPath $godotActionPath -Raw
 Assert-True ($godotAction.Contains("name: Gua Godot Tests")) "The Godot action has the wrong public name."
 Assert-True ($godotAction.Contains("trx;LogFileName=godot.trx")) "The Godot action has the wrong default TRX name."
+Assert-True ($godotAction.Contains("default: gua-godot-addon-*.zip")) "The Godot action must prefer the unified addon archive."
+Assert-True ($godotAction.Contains('"gua-godot-plugin-windows-debug-*.zip"')) "The Godot action must retain legacy Windows addon compatibility."
+
+$linkAddonAction = Get-Content -LiteralPath (Join-Path $root "link-gua-gdscript-addon/action.yml") -Raw
+Assert-True ($linkAddonAction.Contains("default: gua-godot-addon-*.zip")) "The link-addon action must prefer the unified addon archive."
+Assert-True ($linkAddonAction.Contains('"gua-godot-plugin-windows-debug-*.zip"')) "The link-addon action must retain legacy Windows addon compatibility."
 
 $unityWorkflowPath = Join-Path $root ".github/workflows/unity.yml"
 Assert-True (Test-Path -LiteralPath $unityWorkflowPath -PathType Leaf) "The Unity reusable workflow is missing."

@@ -71,7 +71,7 @@ jobs:
 - `gua-plugin-tag`: `gua-v1.18.0` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
-- `gua-plugin-asset-pattern`: 既定値 `gua-godot-plugin-*.zip`
+- `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
 - `configuration`: 既定値 `Release`
 - `test-logger`: 既定値 `trx;LogFileName=godot.trx`
 
