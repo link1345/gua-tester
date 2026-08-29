@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v2.2
+        uses: link1345/gua-tester/godot@v3
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -54,7 +54,7 @@ jobs:
           # gua-plugin-tag: gua-v1.18.0
 ```
 
-Pin production workflows to `@v2.2`. The root action was removed in v2; see the
+Pin production workflows to `@v3`. The root action was removed in v2; see the
 [v2 migration](#v2-migration) section.
 
 ## Godot Action Inputs
@@ -69,7 +69,7 @@ Pin production workflows to `@v2.2`. The root action was removed in v2; see the
 - `godot-executable-suffix`: Default: `win64.exe`
 - `dotnet-version`: Default: `10.0.x`
 - `gua-repository`: Default: `link1345/gua`
-- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.18.0`. By
+- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.2`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-addon-*.zip`. The default also accepts the legacy Windows addon name for older Gua tags.
@@ -83,7 +83,7 @@ You can also use the smaller actions separately.
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v2.2
+- uses: link1345/gua-tester/setup-godot@v3
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -94,11 +94,11 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v2.2
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v3
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
-    # gua-plugin-tag: gua-v1.18.0
+    # gua-plugin-tag: gua-v1.0.2
 ```
 
 This downloads the released `link1345/gua` Godot plugin asset and copies its
@@ -121,7 +121,7 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v2.2
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v3
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
@@ -176,7 +176,7 @@ not install Astro, Node.js, or npm dependencies.
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v2.2
+  uses: link1345/gua-tester/godot@v3
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -184,7 +184,7 @@ not install Astro, Node.js, or npm dependencies.
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v2.2
+  uses: link1345/gua-tester/visual-report@v3
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -267,7 +267,7 @@ workflows without implying that Godot is the default engine. Update:
 
 ```diff
 -- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v2.2
++- uses: link1345/gua-tester/godot@v3
 ```
 
 The Godot component action paths remain `setup-godot` and
