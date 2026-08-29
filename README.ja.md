@@ -251,16 +251,3 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
   </PropertyGroup>
 </Project>
 ```
-
-## v2への移行
-
-v2では、Godotを既定engineに見せないためroot Godot Actionを削除しました。
-
-```diff
--- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v3
-```
-
-Godotの構成Actionである`setup-godot`と`link-gua-gdscript-addon`、engine共通の
-`visual-report`は従来のパスを維持します。既定TRX名は
-`godot-gdscript.trx`から`godot.trx`へ変更しました。
