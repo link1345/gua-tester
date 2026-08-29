@@ -259,17 +259,3 @@ Example test project:
   </PropertyGroup>
 </Project>
 ```
-
-## v2 migration
-
-v2 removes the root Godot action so that the repository can expose both engine
-workflows without implying that Godot is the default engine. Update:
-
-```diff
--- uses: link1345/gua-tester@v1.3
-+- uses: link1345/gua-tester/godot@v3
-```
-
-The Godot component action paths remain `setup-godot` and
-`link-gua-gdscript-addon`. `visual-report` remains engine-neutral. The default
-Godot TRX file changed from `godot-gdscript.trx` to `godot.trx`.
