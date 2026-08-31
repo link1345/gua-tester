@@ -19,6 +19,11 @@ on:
         description: Unique artifact key for this reusable workflow invocation (for example a matrix value).
         required: true
         type: string
+      platform:
+        description: Target standalone platform (WindowsX64, LinuxX64, MacOSX64, MacOSArm64, or MacOSUniversal).
+        required: false
+        default: WindowsX64
+        type: string
       unity-version:
         description: Unity version or auto to read ProjectSettings/ProjectVersion.txt.
         required: false
@@ -79,7 +84,7 @@ permissions:
 
 jobs:
   build-player:
-    name: Build Unity Windows Player
+    name: Build Unity ${{ inputs.platform }} Player
     runs-on: ubuntu-latest
     steps:
       - name: Check out caller repository
@@ -113,6 +118,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          GUA_PLATFORM: ${{ inputs.platform }}
         run: |
           $ErrorActionPreference = "Stop"
           if ([string]::IsNullOrWhiteSpace($env:UNITY_EMAIL) -or [string]::IsNullOrWhiteSpace($env:UNITY_PASSWORD)) {
@@ -123,6 +129,16 @@ jobs:
           }
           if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
             throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
+          }
+          $platforms = @{
+            WindowsX64 = @{ target = "StandaloneWindows64"; output = "/github/workspace/artifacts/unity-player/GuaPlayer.exe" }
+            LinuxX64 = @{ target = "StandaloneLinux64"; output = "/github/workspace/artifacts/unity-player/GuaPlayer" }
+            MacOSX64 = @{ target = "StandaloneOSX"; output = "/github/workspace/artifacts/unity-player/GuaPlayer.app" }
+            MacOSArm64 = @{ target = "StandaloneOSX"; output = "/github/workspace/artifacts/unity-player/GuaPlayer.app" }
+            MacOSUniversal = @{ target = "StandaloneOSX"; output = "/github/workspace/artifacts/unity-player/GuaPlayer.app" }
+          }
+          if (!$platforms.ContainsKey($env:GUA_PLATFORM)) {
+            throw "platform must be WindowsX64, LinuxX64, MacOSX64, MacOSArm64, or MacOSUniversal."
           }
 
           $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
@@ -148,10 +164,12 @@ jobs:
             if ($null -eq $match) { throw "Could not read the Unity version from '$versionFile'." }
             $version = $match.Matches[0].Groups[1].Value
           }
-          if ($version -notmatch '^(?<major>\d+)\.' -or [int]$Matches.major -lt 6000) {
-            throw "Gua Unity CI supports Unity 6000.0 or newer; resolved version was '$version'."
+          if ($version -notmatch '^(?<major>\d+)\.(?<minor>\d+)' -or [int]$Matches.major -lt 6000 -or ([int]$Matches.major -eq 6000 -and [int]$Matches.minor -lt 5)) {
+            throw "Gua Unity CI supports Unity 6000.5 or newer; resolved version was '$version'."
           }
           "project-logs=$(Join-Path $project 'Logs')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "target-platform=$($platforms[$env:GUA_PLATFORM].target)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "player-output=$($platforms[$env:GUA_PLATFORM].output)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Install released Gua Unity package
         shell: pwsh
@@ -207,12 +225,23 @@ jobs:
             "Editor/Gua.Unity.Editor.dll",
             "Runtime/Plugins/Managed/Gua.Core.dll",
             "Runtime/Plugins/Managed/Gua.Runtime.dll",
-            "Runtime/Plugins/Managed/Gua.Unity.dll",
-            "Runtime/Plugins/x86_64/gua.dll",
-            "Runtime/Plugins/x86_64/gua_runtime.dll"
+            "Runtime/Plugins/Managed/Gua.Unity.dll"
           )
           $missing = $required | Where-Object { !(Test-Path -LiteralPath (Join-Path $target $_) -PathType Leaf) }
           if ($missing.Count -gt 0) { throw "The released Unity package is missing: $($missing -join ', ')." }
+          if ("${{ inputs.platform }}" -eq "WindowsX64") {
+            $newLayout = (Test-Path (Join-Path $target "Runtime/Plugins/Windows/x86_64/gua.dll")) -and (Test-Path (Join-Path $target "Runtime/Plugins/Windows/x86_64/gua_runtime.dll"))
+            $legacyLayout = (Test-Path (Join-Path $target "Runtime/Plugins/x86_64/gua.dll")) -and (Test-Path (Join-Path $target "Runtime/Plugins/x86_64/gua_runtime.dll"))
+            if (!$newLayout -and !$legacyLayout) { throw "The released Unity package is missing Windows x64 native plugins." }
+          } elseif ("${{ inputs.platform }}" -eq "LinuxX64") {
+            foreach ($file in "libgua.so", "libgua_runtime.so") {
+              if (!(Test-Path (Join-Path $target "Runtime/Plugins/Linux/x86_64/$file"))) { throw "The released Unity package is missing Linux x64 native plugin '$file'." }
+            }
+          } else {
+            foreach ($file in "libgua.dylib", "libgua_runtime.dylib") {
+              if (!(Test-Path (Join-Path $target "Runtime/Plugins/macOS/$file"))) { throw "The released Unity package is missing Universal 2 macOS native plugin '$file'." }
+            }
+          }
 
           $package = Get-Content -LiteralPath (Join-Path $target "package.json") -Raw | ConvertFrom-Json
           if ($package.name -ne "com.link1345.gua" -or [string]::IsNullOrWhiteSpace($package.version)) {
@@ -232,7 +261,7 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Force artifacts/unity-player, artifacts/unity-logs | Out-Null
 
-      - name: Build Unity Windows x64 Mono Player
+      - name: Build Unity ${{ inputs.platform }} Mono Player
         id: unity-build
         uses: game-ci/unity-builder@v4
         env:
@@ -243,24 +272,25 @@ jobs:
         with:
           unityVersion: ${{ inputs.unity-version }}
           projectPath: ${{ inputs.project-path }}
-          targetPlatform: StandaloneWindows64
+          targetPlatform: ${{ steps.build-paths.outputs.target-platform }}
           buildMethod: Gua.Unity.Editor.GuaUnityEditorCommands.BuildPlayer
           customParameters: >-
             -guaScene "${{ inputs.scene-path }}"
-            -guaOutput /github/workspace/artifacts/unity-player/GuaPlayer.exe
+            -guaOutput "${{ steps.build-paths.outputs.player-output }}"
+            -guaPlatform "${{ inputs.platform }}"
             -logFile /github/workspace/artifacts/unity-logs/unity-build.log
           allowDirtyBuild: true
 
       - name: Verify Unity Player artifact
         shell: pwsh
         run: |
-          $required = @(
-            "artifacts/unity-player/GuaPlayer.exe",
-            "artifacts/unity-player/GuaPlayer_Data",
-            "artifacts/unity-player/UnityPlayer.dll"
-          )
-          $missing = $required | Where-Object { !(Test-Path -LiteralPath $_) }
-          if ($missing.Count -gt 0) { throw "Unity build did not produce the required Player files: $($missing -join ', ')." }
+          $root = "artifacts/unity-player"
+          $valid = switch ("${{ inputs.platform }}") {
+            "WindowsX64" { (Test-Path "$root/GuaPlayer.exe") -and (Test-Path "$root/GuaPlayer_Data") -and (Test-Path "$root/UnityPlayer.dll") }
+            "LinuxX64" { (Test-Path "$root/GuaPlayer") -and (Test-Path "$root/GuaPlayer_Data") }
+            default { (Test-Path "$root/GuaPlayer.app/Contents/MacOS" -PathType Container) }
+          }
+          if (!$valid) { throw "Unity build did not produce the expected ${{ inputs.platform }} Player." }
 
       - name: Upload Unity build diagnostics
         if: always()
@@ -280,9 +310,9 @@ jobs:
           if-no-files-found: error
 
   test-player:
-    name: Test Unity Windows Player
+    name: Test Unity ${{ inputs.platform }} Player
     needs: build-player
-    runs-on: windows-latest
+    runs-on: ${{ inputs.platform == 'WindowsX64' && 'windows-latest' || inputs.platform == 'LinuxX64' && 'ubuntu-22.04' || inputs.platform == 'MacOSX64' && 'macos-15-intel' || 'macos-latest' }}
     steps:
       - name: Check out caller repository
         if: inputs.checkout-repository == ''
@@ -309,6 +339,7 @@ jobs:
           dotnet-version: ${{ inputs.dotnet-version }}
 
       - name: Set deterministic Windows display resolution
+        if: inputs.platform == 'WindowsX64'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -354,8 +385,17 @@ jobs:
             }
           }
           if (!(Test-Path -LiteralPath $testProject -PathType Leaf)) { throw "Test project was not found: '$testProject'." }
-          $player = Get-ChildItem -LiteralPath (Join-Path $workspace "artifacts/unity-player") -Filter GuaPlayer.exe -Recurse -File | Select-Object -First 1
-          if ($null -eq $player) { throw "Downloaded Unity Player executable was not found." }
+          $playerRoot = Join-Path $workspace "artifacts/unity-player"
+          $player = switch ("${{ inputs.platform }}") {
+            "WindowsX64" { Get-ChildItem -LiteralPath $playerRoot -Filter GuaPlayer.exe -Recurse -File | Select-Object -First 1 }
+            "LinuxX64" { Get-ChildItem -LiteralPath $playerRoot -Filter GuaPlayer -Recurse -File | Select-Object -First 1 }
+            default { Get-ChildItem -LiteralPath $playerRoot -Filter GuaPlayer.app -Recurse -Directory | Select-Object -First 1 }
+          }
+          if ($null -eq $player) { throw "Downloaded ${{ inputs.platform }} Unity Player was not found." }
+          if ("${{ inputs.platform }}" -ne "WindowsX64") {
+            $executable = if ("${{ inputs.platform }}" -eq "LinuxX64") { $player.FullName } else { Join-Path $player.FullName "Contents/MacOS/GuaPlayer" }
+            if (Test-Path -LiteralPath $executable -PathType Leaf) { chmod +x $executable }
+          }
           New-Item -ItemType Directory -Force $artifactPath, (Join-Path $workspace "artifacts/test-results") | Out-Null
           "test-project=$testProject" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "artifact-path=$artifactPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -365,14 +405,27 @@ jobs:
         shell: pwsh
         run: dotnet restore "${{ steps.paths.outputs.test-project }}"
 
-      - name: Run Unity tests
+      - name: Run Unity tests (Windows/macOS)
+        if: inputs.platform != 'LinuxX64'
         shell: pwsh
         env:
           GUA_UNITY_PLAYER: ${{ steps.paths.outputs.player }}
           GUA_UNITY_ARTIFACT_PLAYER: ${{ steps.paths.outputs.player }}
           GUA_ARTIFACT_PATH: ${{ steps.paths.outputs.artifact-path }}
           GUA_ARTIFACT_DIR: ${{ steps.paths.outputs.artifact-path }}
+          GUA_VISUAL_VARIANT: unity-${{ inputs.platform }}
         run: dotnet test "${{ steps.paths.outputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --results-directory artifacts/test-results --logger "${{ inputs.test-logger }}"
+
+      - name: Run Unity tests (Linux/Xvfb)
+        if: inputs.platform == 'LinuxX64'
+        shell: bash
+        env:
+          GUA_UNITY_PLAYER: ${{ steps.paths.outputs.player }}
+          GUA_UNITY_ARTIFACT_PLAYER: ${{ steps.paths.outputs.player }}
+          GUA_ARTIFACT_PATH: ${{ steps.paths.outputs.artifact-path }}
+          GUA_ARTIFACT_DIR: ${{ steps.paths.outputs.artifact-path }}
+          GUA_VISUAL_VARIANT: unity-${{ inputs.platform }}
+        run: xvfb-run --auto-servernum dotnet test "${{ steps.paths.outputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --results-directory artifacts/test-results --logger "${{ inputs.test-logger }}"
 
       - name: Collect Unity Player logs
         if: always() && steps.paths.outputs.artifact-path != ''

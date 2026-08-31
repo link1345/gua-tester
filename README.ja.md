@@ -13,9 +13,9 @@ composite Action、Unityのreusable workflow、engine共通のVisual report機�
 
 Godot Actionは次を実行します。
 
-- 任意の Godot Windows 版を公式 release からダウンロード
+- runnerに合うGodot公式版（Windows x64、Linux x64、macOS）をダウンロード
 - 対象の Godot addon asset を含む `link1345/gua` の最新安定版 `gua-v*` リリースを取得
-- ビルド済み Windows DLL を含む `addons/gua` package を展開
+- 対応desktop GDExtensionを含む`addons/gua` packageを展開
 - 展開した addon を利用者の `game/addons/gua` へ配置
 - `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
 
@@ -38,7 +38,7 @@ on:
 
 jobs:
   godot:
-    runs-on: windows-latest
+    runs-on: ubuntu-22.04 # windows-latest／macOS runnerにも対応
     steps:
       - name: Check out game repository
         uses: actions/checkout@v4
@@ -65,7 +65,7 @@ jobs:
 - `test-project`: `Gua.Testing.Godot` を参照する .NET テスト csproj
 - `godot-version`: `4.7` など
 - `godot-status`: `stable`、`rc1`、`dev1` など
-- `godot-executable-suffix`: 既定値 `win64.exe`
+- `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
 - `gua-plugin-tag`: `gua-v1.0.2` などの特定の Gua リリースタグ。省略時は
@@ -103,10 +103,11 @@ jobs:
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
 `addons/gua` を `game/addons/gua` にコピーします。
 
-## Unity 6 Windows x64
+## Unity 6 desktop Mono
 
-Unityでは、LinuxでPlayerをビルドし、生成したWindows x64 Mono Playerを
-Windows runner上の外部NUnitテストから操作するreusable workflowを使用します。
+Unityでは、Mono Playerをビルドし、対象OSのrunner上の外部NUnitテストから操作します。
+既定値は従来どおり`WindowsX64`で、`LinuxX64`、`MacOSX64`、`MacOSArm64`、
+`MacOSUniversal`も指定できます。
 
 ```yaml
 name: Unity Gua UI Tests
@@ -125,6 +126,7 @@ jobs:
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
+      platform: WindowsX64
       unity-version: auto
       gua-tag: gua-v1.0.2
     secrets:
@@ -138,10 +140,12 @@ Professionalライセンスでは`UNITY_LICENSE`の代わりに`UNITY_SERIAL`を
 fork PRにはActions secretsが渡らないため、呼び出し側で未信頼forkのUnity jobを
 skipしてください。Unity credentialsを渡して未信頼コードを実行する
 `pull_request_target`は使用しません。
+Linux／macOS platformを使う場合は、対応するcross-platform native assetを含む
+releaseの`gua-tag`を指定してください。上の旧tag固定例はWindowsで実行可能な例です。
 
 必須inputは`project-path`、`scene-path`、`test-project`と、呼び出しごとに一意な
 `artifact-key`です。任意inputは
-`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
+`platform`（`WindowsX64`）、`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
 `dotnet-version`（`10.0.x`）、`configuration`（`Release`）、`test-logger`
 （`trx;LogFileName=unity.trx`）、`artifact-path`（`artifacts/gua`）です。
 `checkout-repository`と`checkout-ref`は別repoのfixtureを使う高度なoverrideです。
@@ -149,11 +153,10 @@ skipしてください。Unity credentialsを渡して未信頼コードを実�
 `artifact-key`へ指定してください。
 
 workflowは配布済み`com.link1345.gua-*.tgz`をembedded UPM packageとして配置し、
-rendered Windows x64 Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
+指定したrendered Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
 `GUA_UNITY_ARTIFACT_PLAYER`を設定し、Unity build log、Player、TRX、Gua診断・
-Visual artifactを保存します。Player起動前にWindows test runnerの画面解像度を
-1920x1080へ固定します。対象はUnity 6000.0以降です。IL2CPP、Windows以外の
-Player、Editor Play Mode CI、IMGUI、EditorWindow自動化はv2の対象外です。
+Visual artifactを保存します。Windowsは1920x1080へ固定し、LinuxはXvfbを使います。
+対象はUnity 6000.5以降のMonoです。IL2CPP、IMGUI、EditorWindow自動化は対象外です。
 
 `gua-tag`で選ぶUPM packageと、テストprojectが参照する`Gua.Testing.Unity`の
 バージョンは揃えてください。

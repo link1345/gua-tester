@@ -15,7 +15,7 @@ inputs:
     required: false
     default: stable
   godot-executable-suffix:
-    description: Godot Windows executable archive suffix. Use win64.exe for GDScript builds.
+    description: Legacy Windows archive suffix override. Non-Windows runners select the official archive automatically.
     required: false
     default: win64.exe
   dotnet-version:
@@ -72,7 +72,13 @@ runs:
       run: |
         $ErrorActionPreference = "Stop"
         $tag = "${{ inputs.godot-version }}-${{ inputs.godot-status }}"
-        $archiveName = "Godot_v${tag}_${{ inputs.godot-executable-suffix }}.zip"
+        $archiveStem = switch ($env:RUNNER_OS) {
+          "Windows" { "Godot_v${tag}_${{ inputs.godot-executable-suffix }}" }
+          "Linux" { "Godot_v${tag}_linux.x86_64" }
+          "macOS" { "Godot_v${tag}_macos.universal" }
+          default { throw "Unsupported GitHub runner OS '$env:RUNNER_OS'." }
+        }
+        $archiveName = "${archiveStem}.zip"
         $downloadUrl = "https://github.com/godotengine/godot-builds/releases/download/${tag}/${archiveName}"
         $installDir = Join-Path $env:RUNNER_TEMP "godot-${tag}"
         $archivePath = Join-Path $env:RUNNER_TEMP $archiveName
@@ -80,11 +86,17 @@ runs:
         Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
         Expand-Archive -Path $archivePath -DestinationPath $installDir -Force
 
-        $executableName = "Godot_v${tag}_${{ inputs.godot-executable-suffix }}"
-        $godot = Get-ChildItem -Path $installDir -Recurse -Filter $executableName | Select-Object -First 1
-        if ($null -eq $godot) {
-          throw "Could not find Godot executable '${executableName}' in ${archiveName}."
+        $godot = if ($env:RUNNER_OS -eq "macOS") {
+          Get-ChildItem -Path $installDir -Recurse -Filter Godot -File |
+            Where-Object { $_.FullName -like "*.app/Contents/MacOS/Godot" } |
+            Select-Object -First 1
+        } else {
+          Get-ChildItem -Path $installDir -Recurse -Filter $archiveStem -File | Select-Object -First 1
         }
+        if ($null -eq $godot) {
+          throw "Could not find the Godot executable in ${archiveName}."
+        }
+        if ($env:RUNNER_OS -ne "Windows") { chmod +x $godot.FullName }
 
         "GODOT_EXECUTABLE=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
         "godot-executable=$($godot.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -101,7 +113,7 @@ runs:
         $tag = "${{ inputs.gua-plugin-tag }}"
         $assetPattern = "${{ inputs.gua-plugin-asset-pattern }}"
         $assetPatterns = @($assetPattern)
-        if ($assetPattern -eq "gua-godot-addon-*.zip") {
+        if ($assetPattern -eq "gua-godot-addon-*.zip" -and $env:RUNNER_OS -eq "Windows") {
           $assetPatterns += "gua-godot-plugin-windows-debug-*.zip"
         }
         $headers = @{ "User-Agent" = "gua-godot-actions" }
@@ -160,10 +172,15 @@ runs:
         if (!(Test-Path -LiteralPath $sourceAddon)) {
           throw "The release asset '$($asset.name)' does not contain addons/gua."
         }
-        $extensionDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
-        $runtimeDll = Join-Path $sourceAddon "bin/gua_runtime.dll"
-        if (!(Test-Path -LiteralPath $extensionDll) -or !(Test-Path -LiteralPath $runtimeDll)) {
-          throw "The release asset '$($asset.name)' is missing the built Gua DLLs."
+        $extensionName = switch ($env:RUNNER_OS) {
+          "Windows" { "gua_godot.windows.debug.x86_64.dll" }
+          "Linux" { "gua_godot.linux.debug.x86_64.so" }
+          "macOS" { if ($env:RUNNER_ARCH -eq "ARM64") { "gua_godot.macos.debug.arm64.dylib" } else { "gua_godot.macos.debug.x86_64.dylib" } }
+          default { throw "Unsupported GitHub runner OS '$env:RUNNER_OS'." }
+        }
+        $extension = Join-Path $sourceAddon "bin/$extensionName"
+        if (!(Test-Path -LiteralPath $extension)) {
+          throw "The release asset '$($asset.name)' is missing '$extensionName'."
         }
 
         $addonParent = Join-Path "${{ inputs.project-path }}" "addons"
@@ -187,13 +204,15 @@ runs:
           "--quit-after",
           "300"
         )
-        $godot = Start-Process `
-          -FilePath $env:GODOT_EXECUTABLE `
-          -ArgumentList $arguments `
-          -WorkingDirectory $projectPath `
-          -WindowStyle Hidden `
-          -Wait `
-          -PassThru
+        $start = @{
+          FilePath = $env:GODOT_EXECUTABLE
+          ArgumentList = $arguments
+          WorkingDirectory = $projectPath
+          Wait = $true
+          PassThru = $true
+        }
+        if ($env:RUNNER_OS -eq "Windows") { $start.WindowStyle = "Hidden" }
+        $godot = Start-Process @start
         if ($godot.ExitCode -ne 0) {
           throw "Godot project import failed with exit code $($godot.ExitCode)."
         }
