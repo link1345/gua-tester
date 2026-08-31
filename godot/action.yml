@@ -227,6 +227,12 @@ runs:
       shell: pwsh
       run: dotnet restore "${{ inputs.test-project }}"
 
-    - name: Run Godot tests
+    - name: Run Godot tests (Windows/macOS)
+      if: runner.os != 'Linux'
       shell: pwsh
       run: dotnet test "${{ inputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --logger "${{ inputs.test-logger }}"
+
+    - name: Run Godot tests (Linux/Xvfb)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: xvfb-run --auto-servernum dotnet test "${{ inputs.test-project }}" --configuration "${{ inputs.configuration }}" --no-restore --logger "${{ inputs.test-logger }}"

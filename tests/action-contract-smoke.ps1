@@ -16,6 +16,7 @@ Assert-True ($godotAction.Contains("default: gua-godot-addon-*.zip")) "The Godot
 Assert-True ($godotAction.Contains('"gua-godot-plugin-windows-debug-*.zip"')) "The Godot action must retain legacy Windows addon compatibility."
 Assert-True ($godotAction.Contains('"Linux" { "Godot_v${tag}_linux.x86_64" }')) "The Godot action must select the official Linux archive."
 Assert-True ($godotAction.Contains('"macOS" { "Godot_v${tag}_macos.universal" }')) "The Godot action must select the official macOS archive."
+Assert-True ($godotAction.Contains('xvfb-run --auto-servernum dotnet test')) "The Godot action must run rendered Linux tests under Xvfb."
 
 $linkAddonAction = Get-Content -LiteralPath (Join-Path $root "link-gua-gdscript-addon/action.yml") -Raw
 Assert-True ($linkAddonAction.Contains("default: gua-godot-addon-*.zip")) "The link-addon action must prefer the unified addon archive."
