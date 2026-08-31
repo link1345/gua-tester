@@ -44,17 +44,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v3
+        uses: link1345/gua-tester/godot@v3.1
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.0.2
+          # gua-plugin-tag: gua-v1.0.4
 ```
 
-本番workflowは`@v3`へ固定してください。v2ではroot Actionを削除しています。
+本番workflowは`@v3.1`へ固定してください。v2ではroot Actionを削除しています。
 移行方法は[v2への移行](#v2への移行)を参照してください。
 
 ## Godot Action inputs
@@ -68,7 +68,7 @@ jobs:
 - `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: `gua-v1.0.2` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.0.4` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
@@ -82,7 +82,7 @@ jobs:
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v3
+- uses: link1345/gua-tester/setup-godot@v3.1
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -93,11 +93,11 @@ jobs:
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v3
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v3.1
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.0.2
+    # gua-plugin-tag: gua-v1.0.4
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -120,15 +120,15 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v3
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v3.1
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
-      platform: WindowsX64
+      platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.2
+      gua-tag: gua-v1.0.4
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -140,8 +140,7 @@ Professionalライセンスでは`UNITY_LICENSE`の代わりに`UNITY_SERIAL`を
 fork PRにはActions secretsが渡らないため、呼び出し側で未信頼forkのUnity jobを
 skipしてください。Unity credentialsを渡して未信頼コードを実行する
 `pull_request_target`は使用しません。
-Linux／macOS platformを使う場合は、対応するcross-platform native assetを含む
-releaseの`gua-tag`を指定してください。上の旧tag固定例はWindowsで実行可能な例です。
+Gua v1.0.4以降には、Linux／macOS platformで必要なcross-platform native assetが含まれます。
 
 必須inputは`project-path`、`scene-path`、`test-project`と、呼び出しごとに一意な
 `artifact-key`です。任意inputは
@@ -173,7 +172,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v3
+  uses: link1345/gua-tester/godot@v3.1
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -181,7 +180,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v3
+  uses: link1345/gua-tester/visual-report@v3.1
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -240,7 +239,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.18.0" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
