@@ -14,10 +14,17 @@ Assert-True ($godotAction.Contains("name: Gua Godot Tests")) "The Godot action h
 Assert-True ($godotAction.Contains("trx;LogFileName=godot.trx")) "The Godot action has the wrong default TRX name."
 Assert-True ($godotAction.Contains("default: gua-godot-addon-*.zip")) "The Godot action must prefer the unified addon archive."
 Assert-True ($godotAction.Contains('"gua-godot-plugin-windows-debug-*.zip"')) "The Godot action must retain legacy Windows addon compatibility."
+Assert-True ($godotAction.Contains('"Linux" { "Godot_v${tag}_linux.x86_64" }')) "The Godot action must select the official Linux archive."
+Assert-True ($godotAction.Contains('"macOS" { "Godot_v${tag}_macos.universal" }')) "The Godot action must select the official macOS archive."
+Assert-True ($godotAction.Contains('xvfb-run --auto-servernum dotnet test')) "The Godot action must run rendered Linux tests under Xvfb."
 
 $linkAddonAction = Get-Content -LiteralPath (Join-Path $root "link-gua-gdscript-addon/action.yml") -Raw
 Assert-True ($linkAddonAction.Contains("default: gua-godot-addon-*.zip")) "The link-addon action must prefer the unified addon archive."
 Assert-True ($linkAddonAction.Contains('"gua-godot-plugin-windows-debug-*.zip"')) "The link-addon action must retain legacy Windows addon compatibility."
+Assert-True ($linkAddonAction.Contains('$env:RUNNER_OS -eq "Windows"')) "The link-addon action must limit the legacy asset fallback to Windows."
+Assert-True ($linkAddonAction.Contains('"Linux" { "gua_godot.linux.debug.x86_64.so" }')) "The link-addon action must select the Linux extension."
+Assert-True ($linkAddonAction.Contains('"gua_godot.macos.debug.arm64.dylib"')) "The link-addon action must select the Apple Silicon extension."
+Assert-True (!$linkAddonAction.Contains('bin/gua_runtime.dll')) "The link-addon action must accept extensions with the runtime embedded."
 
 $unityWorkflowPath = Join-Path $root ".github/workflows/unity.yml"
 Assert-True (Test-Path -LiteralPath $unityWorkflowPath -PathType Leaf) "The Unity reusable workflow is missing."
@@ -25,6 +32,7 @@ $unityWorkflow = Get-Content -LiteralPath $unityWorkflowPath -Raw
 foreach ($required in @(
     "workflow_call:",
     "artifact-key:",
+    "platform:",
     "build-player:",
     "test-player:",
     "uses: game-ci/unity-builder@v4",
@@ -33,7 +41,9 @@ foreach ($required in @(
     "Collect Unity Player logs",
     "Set-DisplayResolution -Width 1920 -Height 1080 -Force",
     "com.link1345.gua-*.tgz",
-    "targetPlatform: StandaloneWindows64"
+    'targetPlatform: ${{ steps.build-paths.outputs.target-platform }}',
+    'default: WindowsX64',
+    'xvfb-run --auto-servernum'
 )) {
     Assert-True ($unityWorkflow.Contains($required)) "Unity workflow contract is missing '$required'."
 }
@@ -52,8 +62,8 @@ Assert-True (!$testUpload.Contains('${{ inputs.artifact-path }}')) "Unity artifa
 
 foreach ($readme in @("README.md", "README.ja.md")) {
     $content = Get-Content -LiteralPath (Join-Path $root $readme) -Raw
-    Assert-True ($content.Contains("link1345/gua-tester/godot@v2.2")) "$readme does not document the v2.2 Godot action."
-    Assert-True ($content.Contains("link1345/gua-tester/.github/workflows/unity.yml@v2.2")) "$readme does not document the v2.2 Unity reusable workflow."
+    Assert-True ($content.Contains("link1345/gua-tester/godot@v3.1")) "$readme does not document the v3.1 Godot action."
+    Assert-True ($content.Contains("link1345/gua-tester/.github/workflows/unity.yml@v3.1")) "$readme does not document the v3.1 Unity reusable workflow."
     Assert-True ($content.Contains('artifact-key: game')) "$readme does not document the required artifact-key."
     Assert-True ($content.Contains('UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}')) "$readme does not map UNITY_SERIAL."
 }

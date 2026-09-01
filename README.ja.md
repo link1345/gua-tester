@@ -13,9 +13,9 @@ composite Action、Unityのreusable workflow、engine共通のVisual report機�
 
 Godot Actionは次を実行します。
 
-- 任意の Godot Windows 版を公式 release からダウンロード
+- runnerに合うGodot公式版（Windows x64、Linux x64、macOS）をダウンロード
 - 対象の Godot addon asset を含む `link1345/gua` の最新安定版 `gua-v*` リリースを取得
-- ビルド済み Windows DLL を含む `addons/gua` package を展開
+- 対応desktop GDExtensionを含む`addons/gua` packageを展開
 - 展開した addon を利用者の `game/addons/gua` へ配置
 - `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
 
@@ -38,23 +38,23 @@ on:
 
 jobs:
   godot:
-    runs-on: windows-latest
+    runs-on: ubuntu-22.04 # windows-latest／macOS runnerにも対応
     steps:
       - name: Check out game repository
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v3
+        uses: link1345/gua-tester/godot@v3.1
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.0.2
+          # gua-plugin-tag: gua-v1.0.4
 ```
 
-本番workflowは`@v3`へ固定してください。v2ではroot Actionを削除しています。
+本番workflowは`@v3.1`へ固定してください。v2ではroot Actionを削除しています。
 移行方法は[v2への移行](#v2への移行)を参照してください。
 
 ## Godot Action inputs
@@ -65,10 +65,10 @@ jobs:
 - `test-project`: `Gua.Testing.Godot` を参照する .NET テスト csproj
 - `godot-version`: `4.7` など
 - `godot-status`: `stable`、`rc1`、`dev1` など
-- `godot-executable-suffix`: 既定値 `win64.exe`
+- `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: `gua-v1.0.2` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.0.4` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
@@ -82,7 +82,7 @@ jobs:
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v3
+- uses: link1345/gua-tester/setup-godot@v3.1
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -93,20 +93,21 @@ jobs:
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v3
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v3.1
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.0.2
+    # gua-plugin-tag: gua-v1.0.4
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
 `addons/gua` を `game/addons/gua` にコピーします。
 
-## Unity 6 Windows x64
+## Unity 6 desktop Mono
 
-Unityでは、LinuxでPlayerをビルドし、生成したWindows x64 Mono Playerを
-Windows runner上の外部NUnitテストから操作するreusable workflowを使用します。
+Unityでは、Mono Playerをビルドし、対象OSのrunner上の外部NUnitテストから操作します。
+既定値は従来どおり`WindowsX64`で、`LinuxX64`、`MacOSX64`、`MacOSArm64`、
+`MacOSUniversal`も指定できます。
 
 ```yaml
 name: Unity Gua UI Tests
@@ -119,14 +120,15 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v3
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v3.1
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
+      platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.2
+      gua-tag: gua-v1.0.4
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -138,10 +140,11 @@ Professionalライセンスでは`UNITY_LICENSE`の代わりに`UNITY_SERIAL`を
 fork PRにはActions secretsが渡らないため、呼び出し側で未信頼forkのUnity jobを
 skipしてください。Unity credentialsを渡して未信頼コードを実行する
 `pull_request_target`は使用しません。
+Gua v1.0.4以降には、Linux／macOS platformで必要なcross-platform native assetが含まれます。
 
 必須inputは`project-path`、`scene-path`、`test-project`と、呼び出しごとに一意な
 `artifact-key`です。任意inputは
-`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
+`platform`（`WindowsX64`）、`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
 `dotnet-version`（`10.0.x`）、`configuration`（`Release`）、`test-logger`
 （`trx;LogFileName=unity.trx`）、`artifact-path`（`artifacts/gua`）です。
 `checkout-repository`と`checkout-ref`は別repoのfixtureを使う高度なoverrideです。
@@ -149,11 +152,10 @@ skipしてください。Unity credentialsを渡して未信頼コードを実�
 `artifact-key`へ指定してください。
 
 workflowは配布済み`com.link1345.gua-*.tgz`をembedded UPM packageとして配置し、
-rendered Windows x64 Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
+指定したrendered Mono Playerをビルドします。テスト時は`GUA_UNITY_PLAYER`と
 `GUA_UNITY_ARTIFACT_PLAYER`を設定し、Unity build log、Player、TRX、Gua診断・
-Visual artifactを保存します。Player起動前にWindows test runnerの画面解像度を
-1920x1080へ固定します。対象はUnity 6000.0以降です。IL2CPP、Windows以外の
-Player、Editor Play Mode CI、IMGUI、EditorWindow自動化はv2の対象外です。
+Visual artifactを保存します。Windowsは1920x1080へ固定し、LinuxはXvfbを使います。
+対象はUnity 6000.5以降のMonoです。IL2CPP、IMGUI、EditorWindow自動化は対象外です。
 
 `gua-tag`で選ぶUPM packageと、テストprojectが参照する`Gua.Testing.Unity`の
 バージョンは揃えてください。
@@ -170,7 +172,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v3
+  uses: link1345/gua-tester/godot@v3.1
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -178,7 +180,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v3
+  uses: link1345/gua-tester/visual-report@v3.1
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -237,7 +239,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.18.0" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />

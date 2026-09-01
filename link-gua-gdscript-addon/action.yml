@@ -35,7 +35,7 @@ runs:
         $tag = "${{ inputs.gua-plugin-tag }}"
         $assetPattern = "${{ inputs.gua-plugin-asset-pattern }}"
         $assetPatterns = @($assetPattern)
-        if ($assetPattern -eq "gua-godot-addon-*.zip") {
+        if ($assetPattern -eq "gua-godot-addon-*.zip" -and $env:RUNNER_OS -eq "Windows") {
           $assetPatterns += "gua-godot-plugin-windows-debug-*.zip"
         }
         $headers = @{ "User-Agent" = "gua-godot-actions" }
@@ -94,10 +94,15 @@ runs:
         if (!(Test-Path -LiteralPath $sourceAddon)) {
           throw "The release asset '$($asset.name)' does not contain addons/gua."
         }
-        $extensionDll = Join-Path $sourceAddon "bin/gua_godot.windows.debug.x86_64.dll"
-        $runtimeDll = Join-Path $sourceAddon "bin/gua_runtime.dll"
-        if (!(Test-Path -LiteralPath $extensionDll) -or !(Test-Path -LiteralPath $runtimeDll)) {
-          throw "The release asset '$($asset.name)' is missing the built Gua DLLs."
+        $extensionName = switch ($env:RUNNER_OS) {
+          "Windows" { "gua_godot.windows.debug.x86_64.dll" }
+          "Linux" { "gua_godot.linux.debug.x86_64.so" }
+          "macOS" { if ($env:RUNNER_ARCH -eq "ARM64") { "gua_godot.macos.debug.arm64.dylib" } else { "gua_godot.macos.debug.x86_64.dylib" } }
+          default { throw "Unsupported GitHub runner OS '$env:RUNNER_OS'." }
+        }
+        $extension = Join-Path $sourceAddon "bin/$extensionName"
+        if (!(Test-Path -LiteralPath $extension)) {
+          throw "The release asset '$($asset.name)' is missing '$extensionName'."
         }
 
         $addonParent = Join-Path "${{ inputs.project-path }}" "addons"

@@ -13,9 +13,9 @@ consumer repositories.
 
 The Godot action:
 
-- Downloads a selected Godot Windows build from the official release archive
+- Downloads the official Godot build matching the Windows x64, Linux x64, or macOS runner
 - Downloads the latest stable `gua-v*` release containing a matching Godot addon asset from `link1345/gua`
-- Extracts the released `addons/gua` package, including the built Windows DLLs
+- Extracts the released `addons/gua` package, including the matching desktop GDExtension
 - Copies the released addon into the consumer project's `game/addons/gua`
 - Sets `GODOT_EXECUTABLE` and runs `dotnet test`
 
@@ -38,23 +38,23 @@ on:
 
 jobs:
   godot:
-    runs-on: windows-latest
+    runs-on: ubuntu-22.04 # windows-latest and macOS runners are also supported
     steps:
       - name: Check out game repository
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v3
+        uses: link1345/gua-tester/godot@v3.1
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v1.18.0
+          # gua-plugin-tag: gua-v1.0.4
 ```
 
-Pin production workflows to `@v3`. The root action was removed in v2; see the
+Pin production workflows to `@v3.1`. The root action was removed in v2; see the
 [v2 migration](#v2-migration) section.
 
 ## Godot Action Inputs
@@ -66,10 +66,10 @@ Pin production workflows to `@v3`. The root action was removed in v2; see the
   `Gua.Testing.Godot`
 - `godot-version`: For example, `4.7`
 - `godot-status`: For example, `stable`, `rc1`, or `dev1`
-- `godot-executable-suffix`: Default: `win64.exe`
+- `godot-executable-suffix`: Legacy Windows-only override. Linux and macOS use their official archive names automatically
 - `dotnet-version`: Default: `10.0.x`
 - `gua-repository`: Default: `link1345/gua`
-- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.2`. By
+- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.4`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-addon-*.zip`. The default also accepts the legacy Windows addon name for older Gua tags.
@@ -83,7 +83,7 @@ You can also use the smaller actions separately.
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v3
+- uses: link1345/gua-tester/setup-godot@v3.1
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -94,21 +94,21 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v3
+- uses: link1345/gua-tester/link-gua-gdscript-addon@v3.1
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
-    # gua-plugin-tag: gua-v1.0.2
+    # gua-plugin-tag: gua-v1.0.4
 ```
 
 This downloads the released `link1345/gua` Godot plugin asset and copies its
 `addons/gua` directory to `game/addons/gua`.
 
-## Unity 6 Windows x64
+## Unity 6 desktop Mono
 
-Unity uses a reusable workflow because the Unity Player is built on Linux and
-the resulting Windows x64 Mono Player is exercised by external NUnit tests on a
-Windows runner.
+Unity uses a reusable workflow to build a Mono Player and exercise it through
+external NUnit tests on the matching runner. `WindowsX64` remains the default;
+`LinuxX64`, `MacOSX64`, `MacOSArm64`, and `MacOSUniversal` are also supported.
 
 ```yaml
 name: Unity Gua UI Tests
@@ -121,14 +121,15 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v3
+    uses: link1345/gua-tester/.github/workflows/unity.yml@v3.1
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
       test-project: tests/GuaTester.Unity.Tests.csproj
       artifact-key: game
+      platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.18.0
+      gua-tag: gua-v1.0.4
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -140,10 +141,12 @@ Professional licenses can pass `UNITY_SERIAL` instead of `UNITY_LICENSE`.
 Fork pull requests do not receive Actions secrets, so the calling workflow must
 skip the Unity job for untrusted forks. Do not use `pull_request_target` to run
 untrusted game code with Unity credentials.
+Gua v1.0.4 and later include the cross-platform native assets required by the
+Linux and macOS platform values.
 
 Required inputs are `project-path`, `scene-path`, `test-project`, and a unique
 `artifact-key` for each reusable workflow invocation. Optional
-inputs are `unity-version` (`auto`), `gua-repository` (`link1345/gua`),
+inputs are `platform` (`WindowsX64`), `unity-version` (`auto`), `gua-repository` (`link1345/gua`),
 `gua-tag`, `dotnet-version` (`10.0.x`), `configuration` (`Release`),
 `test-logger` (`trx;LogFileName=unity.trx`), and `artifact-path`
 (`artifacts/gua`). `checkout-repository` and `checkout-ref` are advanced
@@ -152,13 +155,12 @@ Use a matrix value or another stable caller-specific value for `artifact-key`
 when the reusable workflow is invoked more than once in the same workflow run.
 
 The workflow installs the released `com.link1345.gua-*.tgz` as an embedded UPM
-package, builds a rendered Windows x64 Mono Player, and sets both
+package, builds the requested rendered Mono Player, and sets both
 `GUA_UNITY_PLAYER` and `GUA_UNITY_ARTIFACT_PLAYER` for `dotnet test`. Unity
 build logs, the Player, TRX results, and Gua diagnostic/visual artifacts are
-retained as workflow artifacts. The Windows test runner display is fixed at
-1920x1080 before launching the Player. Unity 6000.0+ is required; IL2CPP, non-Windows
-Players, Editor Play Mode CI, IMGUI, and EditorWindow automation are outside the
-v2 workflow scope.
+retained as workflow artifacts. Windows uses a fixed 1920x1080 display and Linux
+uses Xvfb. Unity 6000.5+ and Mono are required; IL2CPP, IMGUI, and EditorWindow
+automation are outside this workflow scope.
 
 Keep the UPM release selected by `gua-tag` aligned with the
 `Gua.Testing.Unity` NuGet version used by the test project.
@@ -176,7 +178,7 @@ not install Astro, Node.js, or npm dependencies.
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v3
+  uses: link1345/gua-tester/godot@v3.1
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -184,7 +186,7 @@ not install Astro, Node.js, or npm dependencies.
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v3
+  uses: link1345/gua-tester/visual-report@v3.1
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -245,7 +247,7 @@ Example test project:
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.18.0" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
