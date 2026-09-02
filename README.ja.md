@@ -51,7 +51,7 @@ jobs:
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.0.4
+          # gua-plugin-tag: gua-v1.0.7
 ```
 
 本番workflowは`@v3.1`へ固定してください。v2ではroot Actionを削除しています。
@@ -68,7 +68,7 @@ jobs:
 - `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `link1345/gua`
-- `gua-plugin-tag`: `gua-v1.0.4` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.0.7` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
@@ -97,7 +97,7 @@ jobs:
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.0.4
+    # gua-plugin-tag: gua-v1.0.7
 ```
 
 `link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -128,7 +128,7 @@ jobs:
       artifact-key: game
       platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.4
+      gua-tag: gua-v1.0.7
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -239,7 +239,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.0.4" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />

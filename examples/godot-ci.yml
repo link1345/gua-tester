@@ -27,7 +27,7 @@ jobs:
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v1.0.4
+          # gua-plugin-tag: gua-v1.0.7
 
       - name: Upload pull-request visual failures
         if: failure() && github.event_name == 'pull_request'

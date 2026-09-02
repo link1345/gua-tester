@@ -51,7 +51,7 @@ jobs:
           godot-version: "4.7"
           godot-status: stable
           # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v1.0.4
+          # gua-plugin-tag: gua-v1.0.7
 ```
 
 Pin production workflows to `@v3.1`. The root action was removed in v2; see the
@@ -69,7 +69,7 @@ Pin production workflows to `@v3.1`. The root action was removed in v2; see the
 - `godot-executable-suffix`: Legacy Windows-only override. Linux and macOS use their official archive names automatically
 - `dotnet-version`: Default: `10.0.x`
 - `gua-repository`: Default: `link1345/gua`
-- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.4`. By
+- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.7`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-addon-*.zip`. The default also accepts the legacy Windows addon name for older Gua tags.
@@ -98,7 +98,7 @@ This sets the `GODOT_EXECUTABLE` environment variable.
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
-    # gua-plugin-tag: gua-v1.0.4
+    # gua-plugin-tag: gua-v1.0.7
 ```
 
 This downloads the released `link1345/gua` Godot plugin asset and copies its
@@ -129,7 +129,7 @@ jobs:
       artifact-key: game
       platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.4
+      gua-tag: gua-v1.0.7
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -247,7 +247,7 @@ Example test project:
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.0.4" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
